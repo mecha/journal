@@ -15,13 +15,13 @@ import (
 	t "github.com/gdamore/tcell/v2"
 )
 
-// TODO: need something to encapsulate focus logic (num key to focus specific comp, tab to cycle, help text updates to match focus)
-
 var (
-	screen      t.Screen
-	journal     *j.Journal
-	focusedComp c.Component
-	logWriter   io.Writer = &LogWriter{}
+	screen        t.Screen
+	journal       *j.Journal
+	focusedComp   c.Component
+	focusableList []c.Component
+	helpStrings   map[c.Component]string
+	logWriter     io.Writer = &LogWriter{}
 )
 
 // components
@@ -40,9 +40,9 @@ var (
 	preview      *c.Markdown
 
 	logsPanel *c.Panel
-	logsList   *c.List
+	logsList  *c.List
 
-	help *c.Text
+	helpbar *c.Text
 
 	confirmDelToggle *c.FocusToggle
 	confirmDel       *c.Confirm
@@ -75,12 +75,12 @@ func main() {
 	tagsMux = c.NewMux([]c.Component{tagsPanel})
 
 	preview = c.NewMarkdownComponent("")
-	previewPanel = c.NewPanel("[4]─Preview", preview)
+	previewPanel = c.NewPanel("[3]─Preview", preview)
 
 	logsList = c.NewList([]string{})
-	logsPanel = c.NewPanel("[3]─Log", logsList)
+	logsPanel = c.NewPanel("[4]─Log", logsList)
 
-	help = c.NewText("").Style(theme.Help)
+	helpbar = c.NewText("").Style(theme.Help)
 
 	confirmDelToggle = c.NewFocusToggle(
 		c.NewConfirm("Are you sure you want to delete this journal entry?", func(accepted bool) {
@@ -112,13 +112,24 @@ func main() {
 				c.NewRect(x, 18, calW, tagsH):          tagsMux,
 				c.NewRect(x+calW, y, w-calW, previewH): previewPanel,
 				c.NewRect(x, h-logsH-1, w, logsH):      logsPanel,
-				c.NewRect(x, h-helpH, w, helpH):        help,
+				c.NewRect(x, h-helpH, w, helpH):        helpbar,
 
 				region: confirmDelToggle,
 				c.CenterFit(region, c.NewSize(min(w, 40), 3)): pswdInputToggle,
 			}
 		},
 	).WithFocus(func() c.Component { return focusedComp })
+
+	focusableList = []c.Component{calendar, tagsMux, previewPanel, logsPanel}
+
+	helpStrings = map[c.Component]string{
+		calendar:         "Select day: ⬍/⬌ | Edit: <ENTER> | Delete: d | Today: t | Next/Previous month: n/p | Exit: q",
+		tagsMux:          "Select: ⬍ | View entries: <ENTER>",
+		logsPanel:        "Select: ⬍ | Clear: c",
+		previewPanel:     "Scroll: ⬍",
+		confirmDelToggle: "Delete: y | Keep: n/<ESC>",
+		pswdInputToggle:  "Submit: <enter>",
+	}
 
 	go func() {
 		for range time.NewTicker(3 * time.Second).C {
@@ -142,7 +153,7 @@ func main() {
 
 func setFocus(comp c.Component) {
 	focusedComp = comp
-	updateHelpText()
+	helpbar.SetText(helpStrings[comp])
 }
 
 func handleEvent(ev t.Event) {
@@ -153,15 +164,13 @@ func handleEvent(ev t.Event) {
 	case *t.EventKey:
 		switch ev.Key() {
 		case t.KeyRune:
-			switch ev.Rune() {
-			case '1':
-				setFocus(calendar)
-			case '2':
-				setFocus(tagsMux)
-			case '3':
-				setFocus(logsPanel)
-			case '4':
-				setFocus(previewPanel)
+			rune := ev.Rune()
+			switch rune {
+			case '1', '2', '3', '4', '5', '6', '7', '8', '9':
+				num := int(rune - '1')
+				if num >= 0 && num < len(focusableList) {
+					setFocus(focusableList[num])
+				}
 			case 'd':
 				if focusedComp == calendar {
 					d, m, y := calendar.DayUnderCursor()
@@ -175,15 +184,11 @@ func handleEvent(ev t.Event) {
 		case t.KeyCtrlC:
 			quit(nil)
 		case t.KeyTab:
-			switch focusedComp {
-			case calendar:
-				setFocus(tagsMux)
-			case tagsMux:
-				setFocus(logsPanel)
-			case logsPanel:
-				setFocus(previewPanel)
-			case previewPanel:
-				setFocus(calendar)
+			currNum := slices.Index(focusableList, focusedComp)
+			if currNum >= 0 {
+				nextNum := (currNum + 1) % len(focusableList)
+				nextComp := focusableList[nextNum]
+				setFocus(nextComp)
 			}
 		}
 	}
@@ -234,23 +239,6 @@ func updatePreview(day, month, year int) {
 		}
 	} else {
 		preview.SetContent("[No entry]")
-	}
-}
-
-func updateHelpText() {
-	switch focusedComp {
-	case calendar:
-		help.SetText("Select day: ⬍/⬌ | Edit: <ENTER> | Delete: d | Today: t | Next/Previous month: n/p | Exit: q")
-	case tagsMux:
-		help.SetText("Select: ⬍ | View entries: <ENTER>")
-	case logsPanel:
-		help.SetText("Select: ⬍ | Clear: c")
-	case previewPanel:
-		help.SetText("Scroll: ⬍")
-	case confirmDelToggle:
-		help.SetText("Delete: y | Keep: n/<ESC>")
-	case pswdInputToggle:
-		help.SetText("Submit: <enter>")
 	}
 }
 
