@@ -34,9 +34,10 @@ var (
 	calendarPanel *c.Panel
 	calendar      *c.Calendar
 
-	tagsPanel *c.Panel
-	tagsMux   *c.Mux
-	tagsList  *c.List
+	tagsPanel    *c.Panel
+	tagsMux      *c.Mux
+	tagsList     *c.List
+	tagsFileList *c.List
 
 	previewPanel *c.Panel
 	preview      *c.Markdown
@@ -82,6 +83,7 @@ func main() {
 		switch ev.Key() {
 		case t.KeyEnter:
 			journal.EditEntry(calendar.DayUnderCursor())
+			updatePreview(calendar.DayUnderCursor())
 		case t.KeyRune:
 			switch ev.Rune() {
 			case 'd':
@@ -96,9 +98,38 @@ func main() {
 	_, month, year := calendar.DayUnderCursor()
 	updateCalendarPanelTitle(month, year)
 
-	tagsList = c.NewList([]string{})
-	tagsPanel = c.NewPanel("[2]─Tags", tagsList)
-	tagsMux = c.NewMux([]c.Component{tagsPanel})
+	tagsFileList = c.NewList([]string{}).OnEnter(func(i int, item string) {
+		day, month, year := journal.GetEntryAtPath(item)
+		if year == 0 {
+			return
+		}
+		tagsMux.SwitchTo(0)
+		err := journal.EditEntry(day, month, year)
+		if err != nil {
+			log.Print(err)
+		}
+		updatePreview(calendar.DayUnderCursor())
+	})
+	tagsList = c.NewList([]string{}).OnEnter(func(i int, item string) {
+		files, err := journal.SearchTag(item)
+		if err != nil {
+			log.Print(err)
+		}
+		tagsFileList.SetItems(files)
+		tagsMux.SwitchTo(1)
+	})
+	tagsMux = c.NewMux([]c.Component{
+		c.NewPanel("[2]─Tags", tagsList),
+		c.NewPanel("[2]─Tags > References",
+			c.NewKeyHandler(tagsFileList, func(ev *t.EventKey) bool {
+				if ev.Key() == t.KeyEscape {
+					tagsMux.SwitchTo(0)
+					return true
+				}
+				return false
+			}),
+		),
+	})
 
 	preview = c.NewMarkdownComponent("")
 	previewPanel = c.NewPanel("[3]─Preview", preview)
@@ -112,6 +143,7 @@ func main() {
 		c.NewConfirm("Are you sure you want to delete this journal entry?", func(accepted bool) {
 			if accepted {
 				journal.DeleteEntry(calendar.DayUnderCursor())
+				updatePreview(calendar.DayUnderCursor())
 			}
 			setFocus(calendarPanel)
 		}),

@@ -12,6 +12,7 @@ import (
 	"os/exec"
 	"path"
 	"slices"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -220,6 +221,30 @@ func (j *Journal) EntryTitle(day, month, year int) string {
 	return title
 }
 
+func (j *Journal) GetEntryAtPath(path string) (day, month, year int) {
+	if !strings.HasPrefix(path, j.mountPath) {
+		return 0, 0, 0
+	}
+
+	relpath := path[len(j.mountPath):]
+
+	parts := strings.Split(relpath, "/")
+	if len(parts) < 3 {
+		return 0, 0, 0
+	}
+	parts = parts[len(parts)-3:]
+
+	var err error
+	year, err = strconv.Atoi(parts[0])
+	month, err = strconv.Atoi(parts[1])
+	day, err = strconv.Atoi(strings.TrimSuffix(parts[2], ".md"))
+
+	if err != nil {
+		return 0, 0, 0
+	}
+	return day, month, year
+}
+
 func (j *Journal) DeleteEntry(day, month, year int) error {
 	path := j.EntryPath(day, month, year)
 	err := os.Remove(path)
@@ -245,6 +270,30 @@ func (j *Journal) Tags() ([]string, error) {
 	}
 
 	return slices.Collect(maps.Keys(tags)), nil
+}
+
+func (j *Journal) SearchTag(tag string) ([]string, error) {
+	if !j.isMounted {
+		return []string{}, errors.New("journal is not mounted")
+	}
+
+	cmd := exec.Command("rg", "-l", "-w", tag, j.mountPath)
+	cmd.Stderr = os.Stderr
+	output, err := cmd.Output()
+	if err != nil {
+		return []string{}, fmt.Errorf("rg error: %w", err)
+	}
+
+	fileMap := map[string]bool{}
+	scanner := bufio.NewScanner(bytes.NewBuffer(output))
+	for scanner.Scan() {
+		fileMap[scanner.Text()] = true
+	}
+
+	files := slices.Collect(maps.Keys(fileMap))
+	slices.Sort(files)
+
+	return files, nil
 }
 
 func checkMinGoCryptFSVersion() error {
