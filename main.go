@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"io"
 	"log"
 	"os"
@@ -30,7 +31,8 @@ var (
 
 	titlePanel *c.Panel
 
-	calendar *c.Calendar
+	calendarPanel *c.Panel
+	calendar      *c.Calendar
 
 	tagsPanel *c.Panel
 	tagsMux   *c.Mux
@@ -67,8 +69,13 @@ func main() {
 
 	titlePanel = c.NewPanel("", c.NewText("Journal v0.1.0"))
 
-	// TODO: put calendar in a panel
-	calendar = c.NewCalendar(journal).OnDayChanged(updatePreview)
+	calendar = c.NewCalendar(journal).OnDayChanged(func(day, month, year int) {
+		updateCalendarPanelTitle(month, year)
+		updatePreview(day, month, year)
+	})
+	calendarPanel = c.NewPanel("", calendar)
+	_, month, year := calendar.DayUnderCursor()
+	updateCalendarPanelTitle(month, year)
 
 	tagsList = c.NewList([]string{})
 	tagsPanel = c.NewPanel("[2]─Tags", tagsList)
@@ -87,7 +94,7 @@ func main() {
 			if accepted {
 				journal.DeleteEntry(calendar.DayUnderCursor())
 			}
-			setFocus(calendar)
+			setFocus(calendarPanel)
 		}),
 	)
 
@@ -108,7 +115,7 @@ func main() {
 			tagsH := h - titleH - calH - logsH - helpH
 			return map[c.Rect]c.Component{
 				c.NewRect(x, y, calW, titleH):          titlePanel,
-				c.NewRect(x, 3, calW, calH):            calendar,
+				c.NewRect(x, 3, calW, calH):            calendarPanel,
 				c.NewRect(x, 18, calW, tagsH):          tagsMux,
 				c.NewRect(x+calW, y, w-calW, previewH): previewPanel,
 				c.NewRect(x, h-logsH-1, w, logsH):      logsPanel,
@@ -120,10 +127,10 @@ func main() {
 		},
 	).WithFocus(func() c.Component { return focusedComp })
 
-	focusableList = []c.Component{calendar, tagsMux, previewPanel, logsPanel}
+	focusableList = []c.Component{calendarPanel, tagsMux, previewPanel, logsPanel}
 
 	helpStrings = map[c.Component]string{
-		calendar:         "Select day: ⬍/⬌ | Edit: <ENTER> | Delete: d | Today: t | Next/Previous month: n/p | Exit: q",
+		calendarPanel:    "Select day: ⬍/⬌ | Edit: <ENTER> | Delete: d | Today: t | Next/Previous month: n/p | Exit: q",
 		tagsMux:          "Select: ⬍ | View entries: <ENTER>",
 		logsPanel:        "Select: ⬍ | Clear: c",
 		previewPanel:     "Scroll: ⬍",
@@ -173,7 +180,7 @@ func handleEvent(ev t.Event) {
 				}
 				return
 			case 'd':
-				if focusedComp == calendar {
+				if focusedComp == calendarPanel {
 					d, m, y := calendar.DayUnderCursor()
 					if hasEntry, _ := journal.HasEntry(d, m, y); hasEntry {
 						setFocus(confirmDelToggle)
@@ -207,6 +214,11 @@ func renderScreen() {
 	screen.Clear()
 	layout.Render(screen, region, true)
 	screen.Show()
+}
+
+func updateCalendarPanelTitle(month, year int) {
+	title := fmt.Sprintf("[1]─%s %d", time.Month(month).String(), year)
+	calendarPanel.SetTitle(title)
 }
 
 func updateTags() {
@@ -245,7 +257,7 @@ func mountJournal(password string) {
 		return
 	}
 
-	setFocus(calendar)
+	setFocus(calendarPanel)
 	screen.HideCursor()
 
 	time.Sleep(MountWaitTime)

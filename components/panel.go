@@ -10,15 +10,14 @@ import (
 type Panel struct {
 	title   string
 	content Component
-	style   t.Style
 }
 
 func NewPanel(title string, content Component) *Panel {
-	return &Panel{title, content, t.StyleDefault}
+	return &Panel{title, content}
 }
 
-func (p *Panel) Style(style t.Style) *Panel {
-	p.style = style
+func (p *Panel) SetTitle(title string) *Panel {
+	p.title = title
 	return p
 }
 

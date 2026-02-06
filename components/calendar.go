@@ -190,21 +190,17 @@ func (c *Calendar) Render(screen t.Screen, bounds Rect, hasFocus bool) {
 		numRows      = 7
 		colWidth     = 5
 		rowHeight    = 1
-		headerHeight = 3
+		headerHeight = 2
 	)
-	x, y := bounds.Pos.XY()
-	w, h := 45, 15
 
+	x, y := bounds.Pos.XY()
 	borderStyle := theme.BorderStyle(hasFocus)
 
-	title := fmt.Sprintf("[1]─%s %d", time.Month(c.month).String(), c.year)
-	render.Box(screen, x, y, w, h, render.RoundedBorders, borderStyle)
-	screen.PutStrStyled(x+2, y, title, borderStyle)
-	render.BoxHorizontalDivider(screen, x, y+2, w, render.RoundedBorders, borderStyle)
+	render.BoxHorizontalDivider(screen, x-1, y+1, 45, render.RoundedBorders, borderStyle)
 
 	for i, header := range calenderHeaders {
 		if len(header) < colWidth {
-			screen.PutStr(x+(i*6)+2, y+1, header)
+			screen.PutStr(x+(i*6)+1, y, header)
 		}
 	}
 
@@ -241,10 +237,9 @@ func (c *Calendar) Render(screen t.Screen, bounds Rect, hasFocus bool) {
 			}
 
 			hasEntry, _ := c.journal.HasEntry(day, month, year)
-			// dayStyle = dayStyle.Underline(hasEntry)
 			dayText := fmt.Sprintf("%02d", day)
 
-			x := x + 2 + (col * (colWidth + 1))
+			x := x + 1 + (col * (colWidth + 1))
 			y := y + headerHeight + (row * (rowHeight + 1))
 
 			screen.PutStrStyled(x, y, "    ", dayStyle)
