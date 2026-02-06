@@ -8,44 +8,41 @@ import (
 	t "github.com/gdamore/tcell/v2"
 )
 
-type ListComponent struct {
-	ComponentPos
-	ComponentSize
-	title   string
+type List struct {
 	items   []string
-	onEnter ListItemOnEnterFunc
+	onEnter ListOnEnterFunc
 
-	cursor, vscroll, hscroll int
+	cursor   int
+	vscroll  int
+	hscroll  int
+	lastSize Size
 }
 
-type ListItemOnEnterFunc func(i int, item string)
+type ListOnEnterFunc func(i int, item string)
 
-var _ Component = (*ListComponent)(nil)
+var _ Component = (*List)(nil)
 
-func NewListComponent(title string, x, y, w, h int) *ListComponent {
-	h = max(3, h)
-	return &ListComponent{
-		ComponentPos{x, y},
-		ComponentSize{w, h},
-		title,
-		[]string{},
+func NewList(items []string) *List {
+	return &List{
+		items,
 		func(i int, item string) {},
 		0,
 		0,
 		0,
+		Size{0, 0},
 	}
 }
 
-func (p *ListComponent) OnEnter(onEnter ListItemOnEnterFunc) {
+func (p *List) OnEnter(onEnter ListOnEnterFunc) {
 	p.onEnter = onEnter
 }
 
-func (p *ListComponent) AddItem(item string) {
+func (p *List) AddItem(item string) {
 	p.items = append(p.items, item)
 	p.MoveCursor(0)
 }
 
-func (p *ListComponent) SetItems(items []string) bool {
+func (p *List) SetItems(items []string) bool {
 	equal := slices.Equal(p.items, items)
 	if !equal {
 		p.items = items
@@ -54,10 +51,11 @@ func (p *ListComponent) SetItems(items []string) bool {
 	return !equal
 }
 
-func (p *ListComponent) MoveCursor(n int) {
+func (p *List) MoveCursor(n int) {
 	p.cursor = max(0, min(len(p.items)-1, p.cursor+n))
+	h := max(3, p.lastSize.H)
 
-	pageSize := max(0, p.h-2)
+	pageSize := max(0, h-2)
 	topTarget := p.cursor - 2
 	bottomTarget := p.cursor + 2 - pageSize
 
@@ -69,23 +67,23 @@ func (p *ListComponent) MoveCursor(n int) {
 	}
 }
 
-func (p *ListComponent) Up()       { p.MoveCursor(-1) }
-func (p *ListComponent) Down()     { p.MoveCursor(1) }
-func (p *ListComponent) PageUp()   { p.MoveCursor(-p.h - 2) }
-func (p *ListComponent) PageDown() { p.MoveCursor(p.h - 2) }
-func (p *ListComponent) Top()      { p.cursor = 0 }
-func (p *ListComponent) Bottom()   { p.cursor = len(p.items) - 1 }
+func (p *List) Up()       { p.MoveCursor(-1) }
+func (p *List) Down()     { p.MoveCursor(1) }
+func (p *List) PageUp()   { p.MoveCursor(-p.lastSize.H - 2) }
+func (p *List) PageDown() { p.MoveCursor(p.lastSize.H - 2) }
+func (p *List) Top()      { p.cursor = 0 }
+func (p *List) Bottom()   { p.cursor = len(p.items) - 1 }
 
-func (p *ListComponent) ScrollLeft() {
+func (p *List) ScrollLeft() {
 	p.hscroll = max(0, p.hscroll-1)
 }
 
-func (p *ListComponent) ScrollRight() {
-	maxWidth := render.MaxLength(p.items) - p.w + 2
+func (p *List) ScrollRight() {
+	maxWidth := render.MaxLength(p.items) - p.lastSize.W + 2
 	p.hscroll = min(maxWidth, p.hscroll+1)
 }
 
-func (p *ListComponent) HandleEvent(ev t.Event) bool {
+func (p *List) HandleEvent(ev t.Event) bool {
 	switch ev := ev.(type) {
 	case *t.EventKey:
 		switch ev.Key() {
@@ -113,16 +111,19 @@ func (p *ListComponent) HandleEvent(ev t.Event) bool {
 		case t.KeyRight:
 			p.ScrollRight()
 		case t.KeyEnter:
-			p.onEnter(p.cursor, p.items[p.cursor])
+			if p.cursor < len(p.items) {
+				p.onEnter(p.cursor, p.items[p.cursor])
+			}
 		}
 	}
 	return false
 }
 
-func (p *ListComponent) Render(screen t.Screen, hasFocus bool) {
-	render.Panel(screen, p.title, p.x, p.y, p.w, p.h, render.RoundedBorders, hasFocus)
+func (p *List) Render(screen t.Screen, bounds Rect, hasFocus bool) {
+	x, y, w, h := bounds.XYWH()
+	p.lastSize = bounds.Size
 
-	for i := range p.h - 2 {
+	for i := range h {
 		index := p.vscroll + i
 
 		style := t.StyleDefault
@@ -131,8 +132,8 @@ func (p *ListComponent) Render(screen t.Screen, hasFocus bool) {
 		}
 
 		if index < len(p.items) {
-			text := render.ScrollString(p.items[index], p.hscroll, p.w-2, " ")
-			screen.PutStrStyled(p.x+1, p.y+i+1, text, style)
+			text := render.ScrollString(p.items[index], p.hscroll, w, " ")
+			screen.PutStrStyled(x, y+i, text, style)
 		}
 	}
 }

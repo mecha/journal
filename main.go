@@ -4,279 +4,294 @@ import (
 	"io"
 	"log"
 	"os"
+	"slices"
 	"strings"
 	"time"
 
-	"journal-tui/components"
-	"journal-tui/journal"
-	"journal-tui/render"
+	c "journal-tui/components"
+	j "journal-tui/journal"
 	"journal-tui/theme"
 
 	t "github.com/gdamore/tcell/v2"
 )
 
+// TODO: need something to encapsulate focus logic (num key to focus specific comp, tab to cycle, help text updates to match focus)
+
+var (
+	screen      t.Screen
+	journal     *j.Journal
+	focusedComp c.Component
+	logWriter   io.Writer = &LogWriter{}
+)
+
+// components
+var (
+	layout *c.Layout
+
+	titlePanel *c.Panel
+
+	calendar *c.Calendar
+
+	tagsPanel *c.Panel
+	tagsMux   *c.Mux
+	tagsList  *c.List
+
+	previewPanel *c.Panel
+	preview      *c.Markdown
+
+	logsPanel *c.Panel
+	logsList   *c.List
+
+	help *c.Text
+
+	confirmDelToggle *c.FocusToggle
+	confirmDel       *c.Confirm
+
+	pswdInputToggle *c.FocusToggle
+)
+
 func main() {
 	parseFlags()
 
-	screen, err := t.NewScreen()
+	var err error
+	screen, err = t.NewScreen()
 	if err != nil {
 		log.Fatal(err)
 	}
-
 	if err = screen.Init(); err != nil {
 		log.Fatal(err)
 	}
 
-	journal := journal.NewJournal(Flags.path, Flags.mntPath, Flags.idleTimeout)
+	journal = j.NewJournal(Flags.path, Flags.mntPath, Flags.idleTimeout)
+	journal.OnUnmount(onJournalUnmount)
 
-	var app *App
+	titlePanel = c.NewPanel("", c.NewText("Journal v0.1.0"))
 
-	app = &App{
-		screen:        screen,
-		journal:       journal,
-		calendar:      components.NewCalendar(journal, 0, 3),
-		tags:          components.NewTagList(journal, 0, 18),
-		logs:          components.NewListComponent("[3]─Log", 0, 0, 0, 0),
-		preview:       components.NewMarkdownComponent("[4]-Preview", ""),
-		passwordInput: components.NewInputComponent("Password", func(value string) { app.mountJournal(value) }).SetMask('*'),
-		confirmDelete: components.NewConfirmComponent("Are you sure you want to delete this journal entry?", func(accepted bool) {
+	// TODO: put calendar in a panel
+	calendar = c.NewCalendar(journal).OnDayChanged(updatePreview)
+
+	tagsList = c.NewList([]string{})
+	tagsPanel = c.NewPanel("[2]─Tags", tagsList)
+	tagsMux = c.NewMux([]c.Component{tagsPanel})
+
+	preview = c.NewMarkdownComponent("")
+	previewPanel = c.NewPanel("[4]─Preview", preview)
+
+	logsList = c.NewList([]string{})
+	logsPanel = c.NewPanel("[3]─Log", logsList)
+
+	help = c.NewText("").Style(theme.Help)
+
+	confirmDelToggle = c.NewFocusToggle(
+		c.NewConfirm("Are you sure you want to delete this journal entry?", func(accepted bool) {
 			if accepted {
-				journal.DeleteEntry(app.calendar.DayUnderCursor())
+				journal.DeleteEntry(calendar.DayUnderCursor())
 			}
-			app.setFocus(app.calendar)
+			setFocus(calendar)
 		}),
-		help: components.NewTextComponent("", theme.Help, " "),
-	}
-	app.Resize(screen.Size())
-	app.setFocus(app.passwordInput)
+	)
 
-	app.calendar.OnDayChanged(app.updatePreview)
-	journal.OnUnmount(app.onJournalUnmonut)
+	pswdInputToggle := c.NewFocusToggle(
+		c.NewInputComponent("Password", mountJournal).SetMask('*').ClearOnEnter(true),
+	)
+	setFocus(pswdInputToggle)
 
-	// write log messages to the logs component
-	log.SetOutput(&LogWriter{
-		func(msg string) {
-			line := strings.ReplaceAll(msg, "\n", " | ")
-			app.logs.AddItem(line)
-			app.Render()
+	layout = c.NewLayout(
+		func(screen t.Screen, region c.Rect, hasFocus bool) map[c.Rect]c.Component {
+			x, y, w, h := region.XYWH()
+			const titleH = 3
+			const calW = 45
+			const calH = 15
+			const logsH = 3
+			const helpH = 1
+			previewH := h - logsH - helpH
+			tagsH := h - titleH - calH - logsH - helpH
+			return map[c.Rect]c.Component{
+				c.NewRect(x, y, calW, titleH):          titlePanel,
+				c.NewRect(x, 3, calW, calH):            calendar,
+				c.NewRect(x, 18, calW, tagsH):          tagsMux,
+				c.NewRect(x+calW, y, w-calW, previewH): previewPanel,
+				c.NewRect(x, h-logsH-1, w, logsH):      logsPanel,
+				c.NewRect(x, h-helpH, w, helpH):        help,
+
+				region: confirmDelToggle,
+				c.CenterFit(region, c.NewSize(min(w, 40), 3)): pswdInputToggle,
+			}
 		},
-	})
+	).WithFocus(func() c.Component { return focusedComp })
 
 	go func() {
 		for range time.NewTicker(3 * time.Second).C {
-			app.updateTags()
+			updateTags()
 		}
 	}()
 
+	defer func() {
+		recover()
+		log.SetOutput(os.Stdout)
+		journal.Unmount()
+	}()
+
+	log.SetOutput(logWriter)
 	for {
 		ev := screen.PollEvent()
-		app.HandleEvent(ev)
-		app.Render()
+		handleEvent(ev)
+		renderScreen()
 	}
 }
 
-const MountWaitTime = time.Millisecond * 150
-
-type App struct {
-	screen        t.Screen
-	journal       *journal.Journal
-	calendar      *components.Calendar
-	tags          *components.TagList
-	preview       *components.MarkdownComponent
-	passwordInput *components.InputComponent
-	confirmDelete *components.ConfirmComponent
-	logs          *components.ListComponent
-	help          *components.TextComponent
-	focusedComp   components.Component
+func setFocus(comp c.Component) {
+	focusedComp = comp
+	updateHelpText()
 }
 
-func (app *App) Resize(width, height int) {
-	app.logs.Move(0, height-6)
-	app.logs.Resize(width, 5)
-
-	app.tags.Move(0, 18)
-	app.tags.Resize(45, height-18-6)
-
-	app.preview.Move(45, 0)
-	app.preview.Resize(width-45, height-6)
-
-	app.help.Move(0, height-1)
-	app.help.Resize(width, 1)
-
-	passwordWidth := min(width, 40)
-	app.passwordInput.Resize(passwordWidth, 3)
-	app.passwordInput.Move((width-passwordWidth)/2, (height-3)/2)
-}
-
-func (app *App) HandleEvent(ev t.Event) bool {
+func handleEvent(ev t.Event) {
 	switch ev := ev.(type) {
 	case *t.EventResize:
-		app.Resize(ev.Size())
-		app.screen.Sync()
+		screen.Sync()
 
 	case *t.EventKey:
 		switch ev.Key() {
 		case t.KeyRune:
 			switch ev.Rune() {
 			case '1':
-				app.setFocus(app.calendar)
-				return true
+				setFocus(calendar)
 			case '2':
-				app.setFocus( app.tags)
-				return true
+				setFocus(tagsMux)
 			case '3':
-				app.setFocus( app.logs)
-				return true
+				setFocus(logsPanel)
 			case '4':
-				app.setFocus(app.preview)
-				return true
+				setFocus(previewPanel)
 			case 'd':
-				if app.focusedComp == app.calendar {
-					if hasEntry, _ := app.journal.HasEntry(app.calendar.DayUnderCursor()); hasEntry {
-						app.setFocus(app.confirmDelete)
-						return true
+				if focusedComp == calendar {
+					d, m, y := calendar.DayUnderCursor()
+					if hasEntry, _ := journal.HasEntry(d, m, y); hasEntry {
+						setFocus(confirmDelToggle)
 					}
 				}
 			case 'q':
-				app.quit(nil)
+				quit(nil)
 			}
 		case t.KeyCtrlC:
-			app.quit(nil)
+			quit(nil)
 		case t.KeyTab:
-			switch app.focusedComp {
-			case app.calendar:
-				app.setFocus(app.tags)
-			case app.tags:
-				app.setFocus(app.logs)
-			case app.logs:
-				app.setFocus(app.preview)
-			case app.preview:
-				app.setFocus(app.calendar)
+			switch focusedComp {
+			case calendar:
+				setFocus(tagsMux)
+			case tagsMux:
+				setFocus(logsPanel)
+			case logsPanel:
+				setFocus(previewPanel)
+			case previewPanel:
+				setFocus(calendar)
 			}
 		}
 	}
 
-	consumed := app.focusedComp.HandleEvent(ev)
-	return consumed
-}
-
-func (app *App) setFocus(comp components.Component) {
-	app.focusedComp = comp
-	app.updateHelpText()
-}
-
-func (app *App) Render() {
-	app.screen.Clear()
-
-	if !app.journal.IsMounted() {
-		app.setFocus(app.passwordInput)
-	}
-
-	render.Box(app.screen, 0, 0, 45, 3, render.RoundedBorders, theme.Border)
-	app.screen.PutStr(1, 1, "Journal v0.1.0")
-
-	children := []components.Component{app.calendar, app.tags, app.logs, app.preview, app.help}
-	for _, comp := range children {
-		app.screen.HideCursor()
-		comp.Render(app.screen, app.focusedComp == comp)
-	}
-
-	switch app.focusedComp {
-	case app.passwordInput:
-		app.passwordInput.Render(app.screen, true)
-	case app.confirmDelete:
-		app.confirmDelete.Render(app.screen, true)
-	}
-
-	app.screen.Show()
-}
-
-func (app *App) updateTags() {
-	changed := app.tags.RefreshTags()
-	if changed {
-		app.tags.Render(app.screen, app.focusedComp == app.tags)
-		app.screen.Show()
+	if focusedComp != nil {
+		focusedComp.HandleEvent(ev)
 	}
 }
 
-func (app *App) updatePreview(day, month, year int) {
-	if !app.journal.IsMounted() {
+func renderScreen() {
+	w, h := screen.Size()
+	region := c.NewRect(0, 0, w, h)
+
+	screen.Clear()
+	layout.Render(screen, region, true)
+	screen.Show()
+}
+
+func updateTags() {
+	if journal.IsMounted() {
+		tags, _ := journal.Tags()
+		slices.Sort(tags)
+		tagsList.SetItems(tags)
+	} else {
+		tagsList.SetItems([]string{})
+	}
+	renderScreen()
+}
+
+func updatePreview(day, month, year int) {
+	if !journal.IsMounted() {
 		return
 	}
 
-	hasEntry, err := app.journal.HasEntry(day, month, year)
+	hasEntry, err := journal.HasEntry(day, month, year)
 	if err != nil {
 		log.Println(err)
 		return
 	}
 
 	if hasEntry {
-		filepath := app.journal.EntryPath(day, month, year)
+		filepath := journal.EntryPath(day, month, year)
 		content, err := os.ReadFile(filepath)
 		if err != nil {
 			log.Println(err)
 		} else {
-			app.preview.SetContent(string(content))
+			preview.SetContent(string(content))
 		}
 	} else {
-		app.preview.SetContent("[No entry]")
+		preview.SetContent("[No entry]")
 	}
 }
 
-func (app *App) updateHelpText() {
-	switch app.focusedComp {
-	case app.calendar:
-		app.help.SetText("Select day: ⬍/⬌ | Edit: <ENTER> | Delete: d | Today: t | Next/Previous month: n/p | Exit: q")
-	case app.tags:
-		app.help.SetText("Select: ⬍ | View entries: <ENTER>")
-	case app.logs:
-		app.help.SetText("Select: ⬍ | Clear: c")
-	case app.preview:
-		app.help.SetText("Scroll: ⬍")
-	case app.confirmDelete:
-		app.help.SetText("Delete: y | Keep: n/<ESC>")
-	case app.passwordInput:
-		app.help.SetText("Submit: <enter>")
+func updateHelpText() {
+	switch focusedComp {
+	case calendar:
+		help.SetText("Select day: ⬍/⬌ | Edit: <ENTER> | Delete: d | Today: t | Next/Previous month: n/p | Exit: q")
+	case tagsMux:
+		help.SetText("Select: ⬍ | View entries: <ENTER>")
+	case logsPanel:
+		help.SetText("Select: ⬍ | Clear: c")
+	case previewPanel:
+		help.SetText("Scroll: ⬍")
+	case confirmDelToggle:
+		help.SetText("Delete: y | Keep: n/<ESC>")
+	case pswdInputToggle:
+		help.SetText("Submit: <enter>")
 	}
 }
 
-func (app *App) mountJournal(password string) {
-	if app.journal.IsMounted() {
+const MountWaitTime = time.Millisecond * 150
+
+func mountJournal(password string) {
+	if journal.IsMounted() {
 		return
 	}
 
-	err := app.journal.Mount(password)
+	err := journal.Mount(password)
 	if err != nil {
 		log.Println(err)
 		return
 	}
 
-	app.setFocus(app.calendar)
-	app.passwordInput.SetValue("")
-	app.screen.HideCursor()
+	setFocus(calendar)
+	screen.HideCursor()
 
 	time.Sleep(MountWaitTime)
-	app.updateTags()
-	app.updatePreview(app.calendar.DayUnderCursor())
-	app.Render()
+	updateTags()
+	updatePreview(calendar.DayUnderCursor())
+	renderScreen()
 }
 
-func (app *App) onJournalUnmonut() {
-	app.preview.SetContent("")
-	app.tags.RefreshTags()
-	app.setFocus(app.passwordInput)
-	app.Render()
+func onJournalUnmount() {
+	preview.SetContent("")
+	setFocus(pswdInputToggle)
+	updateTags()
+	renderScreen()
 }
 
-func (app *App) quit(reason error) {
+func quit(reason error) {
 	log.SetOutput(os.Stdout)
-	app.screen.Fini()
+	screen.Fini()
 
 	if reason != nil {
 		log.Println(reason)
 	}
 
-	err := app.journal.Unmount()
+	err := journal.Unmount()
 	if err != nil {
 		log.Println(err)
 	}
@@ -284,14 +299,12 @@ func (app *App) quit(reason error) {
 	os.Exit(0)
 }
 
-type LogWriter struct {
-	callback func(msg string)
-}
-
-var _ io.Writer = (*LogWriter)(nil)
+type LogWriter struct{}
 
 func (w *LogWriter) Write(data []byte) (int, error) {
 	msg := strings.TrimSpace(string(data))
-	w.callback(msg)
+	line := strings.ReplaceAll(msg, "\n", " | ")
+	logsList.AddItem(line)
+	renderScreen()
 	return len(data), nil
 }

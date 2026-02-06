@@ -8,7 +8,7 @@ import (
 	t "github.com/gdamore/tcell/v2"
 )
 
-type ConfirmComponent struct {
+type Confirm struct {
 	message       string
 	yesButton     string
 	noButton      string
@@ -16,10 +16,10 @@ type ConfirmComponent struct {
 	buttonFocused int
 }
 
-var _ Component = (*ConfirmComponent)(nil)
+var _ Component = (*Confirm)(nil)
 
-func NewConfirmComponent(message string, onChoice func(accepted bool)) *ConfirmComponent {
-	return &ConfirmComponent{
+func NewConfirm(message string, onChoice func(accepted bool)) *Confirm {
+	return &Confirm{
 		message:       message,
 		onChoiceFunc:  onChoice,
 		yesButton:     "Yes",
@@ -28,15 +28,15 @@ func NewConfirmComponent(message string, onChoice func(accepted bool)) *ConfirmC
 	}
 }
 
-func (c *ConfirmComponent) YesButton(text string) {
+func (c *Confirm) YesButton(text string) {
 	c.yesButton = text
 }
 
-func (c *ConfirmComponent) NoButton(text string) {
+func (c *Confirm) NoButton(text string) {
 	c.noButton = text
 }
 
-func (c *ConfirmComponent) HandleEvent(ev t.Event) bool {
+func (c *Confirm) HandleEvent(ev t.Event) bool {
 	yes, no := strings.ToLower(c.yesButton), strings.ToLower(c.noButton)
 
 	switch ev := ev.(type) {
@@ -66,13 +66,13 @@ func (c *ConfirmComponent) HandleEvent(ev t.Event) bool {
 	return true
 }
 
-func (c *ConfirmComponent) Render(screen t.Screen, hasFocus bool) {
-	sw, sh := screen.Size()
+func (c *Confirm) Render(screen t.Screen, bounds Rect, hasFocus bool) {
+	bw, bh := bounds.Size.WH()
 	minWidth := len(c.yesButton) + len(c.noButton) + 2
-	width := min(sw, max(40, minWidth))
+	width := min(bw, max(40, minWidth))
 	lines := render.WrapString(c.message, width-2)
 	height := 3 + len(lines)
-	x, y := (sw-width)/2, (sh-height)/2
+	x, y := (bw-width)/2, (bh-height)/2
 
 	render.Box(screen, x, y, width, height, render.RoundedBorders, theme.BorderStyle(hasFocus))
 

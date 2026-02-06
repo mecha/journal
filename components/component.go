@@ -4,15 +4,46 @@ import t "github.com/gdamore/tcell/v2"
 
 type Component interface {
 	HandleEvent(ev t.Event) (consume bool)
-	Render(screen t.Screen, hasFocus bool)
+	Render(screen t.Screen, bounds Rect, hasFocus bool)
 }
 
-type ComponentPos struct{ x, y int }
+type RenderFunc func(screen t.Screen, bounds Rect, hasFocus bool)
+type FocusProvider func() Component
 
-func (p *ComponentPos) Pos() (int, int) { return p.x, p.y }
-func (p *ComponentPos) Move(x, y int)   { p.x, p.y = x, y }
+type Pos struct{ X, Y int }
 
-type ComponentSize struct{ w, h int }
+func NewPos(x, y int) Pos { return Pos{x, y} }
 
-func (p *ComponentSize) Size() (int, int) { return p.w, p.h }
-func (p *ComponentSize) Resize(w, h int)  { p.w, p.h = w, h }
+func (p Pos) XY() (int, int)  { return p.X, p.Y }
+func (p Pos) Pos() (int, int) { return p.X, p.Y }
+func (p *Pos) Move(x, y int)  { p.X, p.Y = x, y }
+
+type Size struct{ W, H int }
+
+func NewSize(w, h int) Size { return Size{w, h} }
+
+func (s Size) WH() (int, int)   { return s.W, s.H }
+func (s Size) Size() (int, int) { return s.W, s.H }
+func (s *Size) Resize(w, h int) { s.W, s.H = w, h }
+
+type Rect struct {
+	Pos
+	Size
+}
+
+func NewRect(x, y, w, h int) Rect {
+	return Rect{Pos{x, y}, Size{w, h}}
+}
+
+func (r Rect) XYWH() (int, int, int, int) {
+	x, y := r.Pos.XY()
+	w, h := r.Size.WH()
+	return x, y, w, h
+}
+
+func CenterFit(rect Rect, size Size) Rect {
+	return Rect{
+		Pos{rect.X + (rect.W-size.W)/2, rect.Y + (rect.H-size.H)/2},
+		Size{size.W, size.H},
+	}
+}

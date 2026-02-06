@@ -19,6 +19,8 @@ import (
 	version "github.com/hashicorp/go-version"
 )
 
+// TODO: move to main?
+
 const minGoCryptFSVersion = "2.6.1"
 
 func init() {
@@ -91,7 +93,7 @@ func (j *Journal) Mount(password string) error {
 
 	go func() {
 		err := j.command.Wait()
-		log.Println("gocryptfs exited, journal has been unmounted")
+		log.Printf("gocryptfs exited, journal has been unmounted: %s", err.Error())
 		j.isMounted = false
 		select {
 		case j.errorChan <- err:

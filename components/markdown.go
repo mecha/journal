@@ -7,23 +7,16 @@ import (
 	t "github.com/gdamore/tcell/v2"
 )
 
-type MarkdownComponent struct {
-	ComponentPos
-	ComponentSize
-
-	title   string
+type Markdown struct {
 	content []string
 	vscroll int
 	hscroll int
 }
 
-var _ Component = (*MarkdownComponent)(nil)
+var _ Component = (*Markdown)(nil)
 
-func NewMarkdownComponent(title, markdown string) *MarkdownComponent {
-	c := &MarkdownComponent{
-		ComponentPos{0, 0},
-		ComponentSize{80, 30},
-		title,
+func NewMarkdownComponent(markdown string) *Markdown {
+	c := &Markdown{
 		[]string{},
 		0,
 		0,
@@ -32,11 +25,11 @@ func NewMarkdownComponent(title, markdown string) *MarkdownComponent {
 	return c
 }
 
-func (c *MarkdownComponent) SetContent(content string) {
+func (c *Markdown) SetContent(content string) {
 	c.content = strings.Split(content, "\n")
 }
 
-func (c *MarkdownComponent) HandleEvent(ev t.Event) bool {
+func (c *Markdown) HandleEvent(ev t.Event) bool {
 	switch ev := ev.(type) {
 	case *t.EventKey:
 		switch ev.Key() {
@@ -54,18 +47,18 @@ func (c *MarkdownComponent) HandleEvent(ev t.Event) bool {
 	return false
 }
 
-func (c *MarkdownComponent) Render(screen t.Screen, hasFocus bool) {
-	render.Panel(screen, c.title, c.x, c.y, c.w, c.h, render.RoundedBorders, hasFocus)
+func (c *Markdown) Render(screen t.Screen, bounds Rect, hasFocus bool) {
+	x, y, w, h := bounds.XYWH()
 
-	maxLineLen := max(0, c.w-2)
-	maxNumLines := max(0, c.h-2)
+	maxLineLen := max(0, w)
+	maxNumLines := max(0, h)
 
 	topLine := max(0, c.vscroll)
 	botLine := min(len(c.content), topLine+maxNumLines)
 	visibleLines := c.content[topLine:botLine]
 
 	for i, line := range visibleLines {
-		// screen.PutStr(c.x+1, c.y+1+i, render.ScrollString(line, c.hscroll, maxLineLen, " "))
-		screen.PutStr(c.x+1, c.y+1+i, render.FixedString(line, maxLineLen, " "))
+		// screen.PutStr(x, y+i, render.ScrollString(line, c.hscroll, maxLineLen, " "))
+		screen.PutStr(x, y+i, render.FixedString(line, maxLineLen, " "))
 	}
 }

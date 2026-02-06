@@ -9,11 +9,10 @@ import (
 )
 
 type InputComponent struct {
-	ComponentPos
-	ComponentSize
-	title    string
-	callback func(value string)
-	mask     rune
+	title        string
+	onEnterFunc  func(value string)
+	clearOnEnter bool
+	mask         rune
 
 	text   string
 	cursor int
@@ -21,16 +20,17 @@ type InputComponent struct {
 
 var _ Component = (*InputComponent)(nil)
 
-func NewInputComponent(title string, callback func(value string)) *InputComponent {
+func NewInputComponent(title string, onEnter func(value string)) *InputComponent {
 	return &InputComponent{
-		ComponentPos{0, 0},
-		ComponentSize{40, 1},
-		title,
-		callback,
-		0,
-		"",
-		0,
+		title:       title,
+		onEnterFunc: onEnter,
+		mask:        0,
 	}
+}
+
+func (in *InputComponent) ClearOnEnter(clearOnEnter bool) *InputComponent {
+	in.clearOnEnter = clearOnEnter
+	return in
 }
 
 func (c *InputComponent) SetValue(value string) *InputComponent {
@@ -68,17 +68,20 @@ func (c *InputComponent) HandleEvent(ev t.Event) bool {
 			}
 
 		case t.KeyEnter:
-			go c.callback(c.text)
+			go c.onEnterFunc(c.text)
+			c.SetValue("")
 		}
 	}
 	return false
 }
 
-func (c *InputComponent) Render(screen t.Screen, hasFocus bool) {
-	render.Panel(screen, c.title, c.x, c.y, c.w, 3, render.RoundedBorders, hasFocus)
+func (c *InputComponent) Render(screen t.Screen, bounds Rect, hasFocus bool) {
+	x, y, w, h := bounds.XYWH()
+
+	render.Panel(screen, c.title, x, y, w, h, render.RoundedBorders, hasFocus)
 
 	text := c.text
-	maxLength := c.w - 3
+	maxLength := w - 3
 	if len(c.text) > maxLength {
 		text = c.text[:len(c.text)-maxLength]
 	}
@@ -87,8 +90,8 @@ func (c *InputComponent) Render(screen t.Screen, hasFocus bool) {
 		text = strings.Repeat(string(c.mask), utf8.RuneCountInString(text))
 	}
 
-	screen.PutStr(c.x+1, c.y+1, text)
+	screen.PutStr(x+1, y+1, text)
 	if hasFocus {
-		screen.ShowCursor(c.x+1+c.cursor, c.y+1)
+		screen.ShowCursor(x+1+c.cursor, y+1)
 	}
 }

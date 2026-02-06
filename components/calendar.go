@@ -11,7 +11,6 @@ import (
 )
 
 type Calendar struct {
-	ComponentPos
 	journal         *journal.Journal
 	year            int
 	month           int
@@ -25,16 +24,20 @@ type Calendar struct {
 
 var _ Component = (*Calendar)(nil)
 
-func NewCalendar(journal *journal.Journal, x, y int) *Calendar {
+func NewCalendar(journal *journal.Journal) *Calendar {
 	today := time.Now()
 	c := &Calendar{
-		ComponentPos: ComponentPos{x, y},
-		journal:      journal,
-		year:         today.Year(),
-		month:        int(today.Month()),
+		journal: journal,
+		year:    today.Year(),
+		month:   int(today.Month()),
 	}
 	c.analyzeMonth()
 	c.Today()
+	return c
+}
+
+func (c *Calendar) OnDayChanged(callback func(day, month, year int)) *Calendar {
+	c.onDayChangeFunc = callback
 	return c
 }
 
@@ -112,10 +115,6 @@ func (c *Calendar) DayDown() {
 	c.notifyDayChange()
 }
 
-func (c *Calendar) OnDayChanged(callback func(day, month, year int)) {
-	c.onDayChangeFunc = callback
-}
-
 func (c *Calendar) notifyDayChange() {
 	if c.onDayChangeFunc != nil {
 		c.onDayChangeFunc(c.DayUnderCursor())
@@ -185,9 +184,7 @@ var calenderHeaders = []string{
 	"Sun",
 }
 
-func (c *Calendar) Size() (int, int) { return 45, 15 }
-
-func (c *Calendar) Render(screen t.Screen, hasFocus bool) {
+func (c *Calendar) Render(screen t.Screen, bounds Rect, hasFocus bool) {
 	const (
 		numCols      = 7
 		numRows      = 7
@@ -195,18 +192,19 @@ func (c *Calendar) Render(screen t.Screen, hasFocus bool) {
 		rowHeight    = 1
 		headerHeight = 3
 	)
-	width, _ := c.Size()
+	x, y := bounds.Pos.XY()
+	w, h := 45, 15
 
 	borderStyle := theme.BorderStyle(hasFocus)
 
 	title := fmt.Sprintf("[1]─%s %d", time.Month(c.month).String(), c.year)
-	render.Box(screen, c.x, c.y, width, 15, render.RoundedBorders, borderStyle)
-	screen.PutStrStyled(c.x+2, c.y, title, borderStyle)
-	render.BoxHorizontalDivider(screen, c.x, c.y+2, width, render.RoundedBorders, borderStyle)
+	render.Box(screen, x, y, w, h, render.RoundedBorders, borderStyle)
+	screen.PutStrStyled(x+2, y, title, borderStyle)
+	render.BoxHorizontalDivider(screen, x, y+2, w, render.RoundedBorders, borderStyle)
 
 	for i, header := range calenderHeaders {
 		if len(header) < colWidth {
-			screen.PutStr(c.x+(i*6)+2, c.y+1, header)
+			screen.PutStr(x+(i*6)+2, y+1, header)
 		}
 	}
 
@@ -246,8 +244,8 @@ func (c *Calendar) Render(screen t.Screen, hasFocus bool) {
 			// dayStyle = dayStyle.Underline(hasEntry)
 			dayText := fmt.Sprintf("%02d", day)
 
-			x := c.x + 2 + (col * (colWidth + 1))
-			y := c.y + headerHeight + (row * (rowHeight + 1))
+			x := x + 2 + (col * (colWidth + 1))
+			y := y + headerHeight + (row * (rowHeight + 1))
 
 			screen.PutStrStyled(x, y, "    ", dayStyle)
 			screen.PutStrStyled(x+1, y, dayText, dayStyle.Underline(hasEntry))

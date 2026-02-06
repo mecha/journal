@@ -7,44 +7,47 @@ import (
 	t "github.com/gdamore/tcell/v2"
 )
 
-type TextComponent struct {
-	ComponentPos
-	ComponentSize
+type Text struct {
 	lines []string
 	style t.Style
 	pad   string
 }
 
-var _ Component = (*TextComponent)(nil)
+var _ Component = (*Text)(nil)
 
-func NewTextComponent(text string, style t.Style, pad string) *TextComponent {
-	c := &TextComponent{
-		ComponentPos{0, 0},
-		ComponentSize{0, 1},
-		nil,
-		style,
-		pad,
-	}
+func NewText(text string) *Text {
+	c := &Text{nil, t.StyleDefault, " "}
 	c.SetText(text)
 	return c
 }
 
-func (c *TextComponent) SetText(text string) *TextComponent {
-	c.lines = strings.Split(text, "\n")
-	return c
+func (t *Text) Style(style t.Style) *Text {
+	t.style = style
+	return t
 }
 
-func (c *TextComponent) HandleEvent(ev t.Event) bool {
+func (t *Text) Pad(pad string) *Text {
+	t.pad = pad
+	return t
+}
+
+func (t *Text) SetText(text string) *Text {
+	t.lines = strings.Split(text, "\n")
+	return t
+}
+
+func (t *Text) HandleEvent(ev t.Event) bool {
 	return false
 }
 
-func (c *TextComponent) Render(screen t.Screen, hasFocus bool) {
-	visibleLines := c.lines
-	if c.h < len(c.lines) {
-		visibleLines = c.lines[:c.h]
+func (t *Text) Render(screen t.Screen, bounds Rect, hasFocus bool) {
+	x, y, w, h := bounds.XYWH()
+	visibleLines := t.lines
+	if h < len(t.lines) {
+		visibleLines = t.lines[:h]
 	}
 
 	for i, line := range visibleLines {
-		screen.PutStrStyled(c.x, c.y+i, render.FixedString(line, c.w, c.pad), c.style)
+		screen.PutStrStyled(x, y+i, render.FixedString(line, w, t.pad), t.style)
 	}
 }
