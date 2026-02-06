@@ -1,7 +1,6 @@
 package components
 
 import (
-	"journal-tui/render"
 	"strings"
 	"unicode/utf8"
 
@@ -9,7 +8,6 @@ import (
 )
 
 type InputComponent struct {
-	title        string
 	onEnterFunc  func(value string)
 	clearOnEnter bool
 	mask         rune
@@ -20,9 +18,8 @@ type InputComponent struct {
 
 var _ Component = (*InputComponent)(nil)
 
-func NewInputComponent(title string, onEnter func(value string)) *InputComponent {
+func NewInputComponent(onEnter func(value string)) *InputComponent {
 	return &InputComponent{
-		title:       title,
 		onEnterFunc: onEnter,
 		mask:        0,
 	}
@@ -68,7 +65,7 @@ func (c *InputComponent) HandleEvent(ev t.Event) bool {
 			}
 
 		case t.KeyEnter:
-			go c.onEnterFunc(c.text)
+			c.onEnterFunc(c.text)
 			c.SetValue("")
 		}
 	}
@@ -76,22 +73,20 @@ func (c *InputComponent) HandleEvent(ev t.Event) bool {
 }
 
 func (c *InputComponent) Render(screen t.Screen, bounds Rect, hasFocus bool) {
-	x, y, w, h := bounds.XYWH()
-
-	render.Panel(screen, c.title, x, y, w, h, render.RoundedBorders, hasFocus)
+	x, y, w, _ := bounds.XYWH()
 
 	text := c.text
-	maxLength := w - 3
-	if len(c.text) > maxLength {
-		text = c.text[:len(c.text)-maxLength]
+	numRunesShown := w - 1
+	if len(c.text) > numRunesShown {
+		text = c.text[len(c.text)-numRunesShown:]
 	}
 
 	if c.mask != 0 {
 		text = strings.Repeat(string(c.mask), utf8.RuneCountInString(text))
 	}
 
-	screen.PutStr(x+1, y+1, text)
+	screen.PutStr(x, y, text)
 	if hasFocus {
-		screen.ShowCursor(x+1+c.cursor, y+1)
+		screen.ShowCursor(x+min(numRunesShown, c.cursor), y)
 	}
 }

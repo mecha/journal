@@ -155,7 +155,7 @@ func main() {
 	)
 
 	pswdInputToggle := c.NewFocusToggle(
-		c.NewInputComponent("Password", mountJournal).SetMask('*').ClearOnEnter(true),
+		c.NewPanel("Password", c.NewInputComponent(mountJournal).SetMask('*').ClearOnEnter(true)),
 	)
 	setFocus(pswdInputToggle)
 
