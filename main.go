@@ -223,7 +223,7 @@ func handleEvent(ev t.Event) {
 		screen.Sync()
 
 	case *t.EventKey:
-		switch ev.Key() {
+		switch key := ev.Key(); key {
 		case t.KeyRune:
 			rune := ev.Rune()
 			switch rune {
@@ -238,10 +238,15 @@ func handleEvent(ev t.Event) {
 			}
 		case t.KeyCtrlC:
 			quit(nil)
-		case t.KeyTab:
+		case t.KeyTab, t.KeyBacktab:
 			currNum := slices.Index(focusableList, focusedComp)
 			if currNum >= 0 {
-				nextNum := (currNum + 1) % len(focusableList)
+				var nextNum int
+				if key == t.KeyTab {
+					nextNum = (currNum + 1) % len(focusableList)
+				} else {
+					nextNum = (currNum - 1 + len(focusableList)) % len(focusableList)
+				}
 				nextComp := focusableList[nextNum]
 				setFocus(nextComp)
 			}
