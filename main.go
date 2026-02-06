@@ -160,8 +160,11 @@ func main() {
 			const titleH = 3
 			const calW = 45
 			const calH = 15
-			const logsH = 3
 			const helpH = 1
+			logsH := 3
+			if focusedComp == logsPanel {
+				logsH = 10
+			}
 			previewH := h - logsH - helpH
 			tagsH := h - titleH - calH - logsH - helpH
 			return map[c.Rect]c.Component{
