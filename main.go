@@ -69,11 +69,30 @@ func main() {
 
 	titlePanel = c.NewPanel("", c.NewText("Journal v0.1.0"))
 
-	calendar = c.NewCalendar(journal).OnDayChanged(func(day, month, year int) {
-		updateCalendarPanelTitle(month, year)
-		updatePreview(day, month, year)
-	})
-	calendarPanel = c.NewPanel("", calendar)
+	calendar = c.NewCalendar().
+		UnderlineDay(func(day, month, year int) bool {
+			hasEntry, _ := journal.HasEntry(day, month, year)
+			return hasEntry
+		}).
+		OnDayChanged(func(day, month, year int) {
+			updateCalendarPanelTitle(month, year)
+			updatePreview(day, month, year)
+		})
+	calendarPanel = c.NewPanel("", c.NewKeyHandler(calendar, func(ev *t.EventKey) bool {
+		switch ev.Key() {
+		case t.KeyEnter:
+			journal.EditEntry(calendar.DayUnderCursor())
+		case t.KeyRune:
+			switch ev.Rune() {
+			case 'd':
+				if has, _ := journal.HasEntry(calendar.DayUnderCursor()); has {
+					setFocus(confirmDelToggle)
+				}
+				return true
+			}
+		}
+		return false
+	}))
 	_, month, year := calendar.DayUnderCursor()
 	updateCalendarPanelTitle(month, year)
 
@@ -179,13 +198,6 @@ func handleEvent(ev t.Event) {
 					setFocus(focusableList[num])
 				}
 				return
-			case 'd':
-				if focusedComp == calendarPanel {
-					d, m, y := calendar.DayUnderCursor()
-					if hasEntry, _ := journal.HasEntry(d, m, y); hasEntry {
-						setFocus(confirmDelToggle)
-					}
-				}
 			case 'q':
 				quit(nil)
 			}

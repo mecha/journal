@@ -2,7 +2,6 @@ package components
 
 import (
 	"fmt"
-	"journal-tui/journal"
 	"journal-tui/render"
 	"journal-tui/theme"
 	"time"
@@ -11,7 +10,6 @@ import (
 )
 
 type Calendar struct {
-	journal         *journal.Journal
 	year            int
 	month           int
 	cursor          int
@@ -19,20 +17,25 @@ type Calendar struct {
 	lastIdx         int
 	numDays         int
 	prevNumDays     int
+	underlineDay    func(day, month, year int) bool
 	onDayChangeFunc func(day, month, year int)
 }
 
 var _ Component = (*Calendar)(nil)
 
-func NewCalendar(journal *journal.Journal) *Calendar {
+func NewCalendar() *Calendar {
 	today := time.Now()
 	c := &Calendar{
-		journal: journal,
-		year:    today.Year(),
-		month:   int(today.Month()),
+		year:  today.Year(),
+		month: int(today.Month()),
 	}
 	c.analyzeMonth()
 	c.Today()
+	return c
+}
+
+func (c *Calendar) UnderlineDay(fn func(day, month, year int) bool) *Calendar {
+	c.underlineDay = fn
 	return c
 }
 
@@ -135,8 +138,6 @@ func (c *Calendar) HandleEvent(ev t.Event) (consume bool) {
 			c.DayLeft()
 		case t.KeyRight:
 			c.DayRight()
-		case t.KeyEnter:
-			c.journal.EditEntry(c.DayUnderCursor())
 
 		case t.KeyRune:
 			switch ev.Rune() {
@@ -236,14 +237,15 @@ func (c *Calendar) Render(screen t.Screen, bounds Rect, hasFocus bool) {
 				dayStyle = theme.CalendarDay
 			}
 
-			hasEntry, _ := c.journal.HasEntry(day, month, year)
-			dayText := fmt.Sprintf("%02d", day)
-
 			x := x + 1 + (col * (colWidth + 1))
 			y := y + headerHeight + (row * (rowHeight + 1))
 
 			screen.PutStrStyled(x, y, "    ", dayStyle)
-			screen.PutStrStyled(x+1, y, dayText, dayStyle.Underline(hasEntry))
+
+			if c.underlineDay != nil && c.underlineDay(day, month, year) {
+				dayStyle = dayStyle.Underline(true)
+			}
+			screen.PutStrStyled(x+1, y, fmt.Sprintf("%02d", day), dayStyle)
 		}
 	}
 }
