@@ -171,6 +171,7 @@ func handleEvent(ev t.Event) {
 				if num >= 0 && num < len(focusableList) {
 					setFocus(focusableList[num])
 				}
+				return
 			case 'd':
 				if focusedComp == calendar {
 					d, m, y := calendar.DayUnderCursor()
@@ -190,6 +191,7 @@ func handleEvent(ev t.Event) {
 				nextComp := focusableList[nextNum]
 				setFocus(nextComp)
 			}
+			return
 		}
 	}
 
