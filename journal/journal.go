@@ -146,6 +146,24 @@ func (j *Journal) HasEntry(day int, month int, year int) (bool, error) {
 	return true, nil
 }
 
+func (j *Journal) GetEntry(day, month, year int) (string, bool, error) {
+	if !j.isMounted {
+		return "", false, nil
+	}
+
+	filepath := j.EntryPath(day, month, year)
+	content, err := os.ReadFile(filepath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return "", false, nil
+		} else {
+			return "", false, nil
+		}
+	}
+
+	return string(content), true, nil
+}
+
 func (j *Journal) CreateEntry(day int, month int, year int) (string, error) {
 	if !j.isMounted {
 		return "", errors.New("journal is not mounted")

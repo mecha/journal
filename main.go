@@ -219,25 +219,13 @@ func updateTags() {
 }
 
 func updatePreview(day, month, year int) {
-	if !journal.IsMounted() {
-		return
-	}
-
-	hasEntry, err := journal.HasEntry(day, month, year)
-	if err != nil {
+	entry, has, err := journal.GetEntry(day, month, year)
+	switch {
+	case err != nil:
 		log.Println(err)
-		return
-	}
-
-	if hasEntry {
-		filepath := journal.EntryPath(day, month, year)
-		content, err := os.ReadFile(filepath)
-		if err != nil {
-			log.Println(err)
-		} else {
-			preview.SetContent(string(content))
-		}
-	} else {
+	case has:
+		preview.SetContent(entry)
+	default:
 		preview.SetContent("[No entry]")
 	}
 }
