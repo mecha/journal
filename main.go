@@ -17,12 +17,14 @@ import (
 )
 
 var (
-	screen        t.Screen
-	journal       *j.Journal
-	focusedComp   c.Component
-	focusableList []c.Component
-	helpStrings   map[c.Component]string
-	logWriter     io.Writer = &LogWriter{}
+	screen         t.Screen
+	journal        *j.Journal
+	focusedComp    c.Component
+	focusableList  []c.Component
+	helpStrings    map[c.Component]string
+	previewContent string
+	logsContent    string
+	logWriter      io.Writer = &LogWriter{}
 )
 
 // components
@@ -40,10 +42,10 @@ var (
 	tagsFileList *c.List
 
 	previewPanel *c.Panel
-	preview      *c.Markdown
+	preview      *c.Text
 
 	logsPanel *c.Panel
-	logsList  *c.List
+	logs      *c.Text
 
 	helpbar *c.Text
 
@@ -68,7 +70,7 @@ func main() {
 	journal = j.NewJournal(Flags.path, Flags.mntPath, Flags.idleTimeout)
 	journal.OnUnmount(onJournalUnmount)
 
-	titlePanel = c.NewPanel("", c.NewText("Journal v0.1.0"))
+	titlePanel = c.NewPanel("", c.NewTextScroller([]string{"Journal v0.1.0"}))
 
 	calendar = c.NewCalendar().
 		UnderlineDay(func(day, month, year int) bool {
@@ -131,13 +133,13 @@ func main() {
 		),
 	})
 
-	preview = c.NewMarkdownComponent("")
+	preview = c.NewTextScroller([]string{})
 	previewPanel = c.NewPanel("[3]─Preview", preview)
 
-	logsList = c.NewList([]string{})
-	logsPanel = c.NewPanel("[4]─Log", logsList)
+	logs = c.NewTextScroller([]string{})
+	logsPanel = c.NewPanel("[4]─Log", logs)
 
-	helpbar = c.NewText("").Style(theme.Help)
+	helpbar = c.NewTextScroller([]string{}).SetStyle(theme.Help)
 
 	confirmDelToggle = c.NewFocusToggle(
 		c.NewConfirm("Are you sure you want to delete this journal entry?", func(accepted bool) {
@@ -155,7 +157,7 @@ func main() {
 	setFocus(pswdInputToggle)
 
 	layout = c.NewLayout(
-		func(screen t.Screen, region c.Rect, hasFocus bool) map[c.Rect]c.Component {
+		func(screen t.Screen, region c.Rect, hasFocus bool) []c.LayoutTile {
 			x, y, w, h := region.XYWH()
 			const titleH = 3
 			const calW = 45
@@ -213,7 +215,7 @@ func main() {
 
 func setFocus(comp c.Component) {
 	focusedComp = comp
-	helpbar.SetText(helpStrings[comp])
+	helpbar.SetLines([]string{helpStrings[comp]})
 }
 
 func handleEvent(ev t.Event) {
@@ -289,9 +291,9 @@ func updatePreview(day, month, year int) {
 	case err != nil:
 		log.Println(err)
 	case has:
-		preview.SetContent(entry)
+		preview.SetLines(strings.Split(entry, "\n"))
 	default:
-		preview.SetContent("[No entry]")
+		preview.SetLines([]string{"[No entry]"})
 	}
 }
 
@@ -318,7 +320,7 @@ func mountJournal(password string) {
 }
 
 func onJournalUnmount() {
-	preview.SetContent("")
+	preview.SetLines([]string{"[Journal is locked]"})
 	setFocus(pswdInputToggle)
 	updateTags()
 	renderScreen()
@@ -343,9 +345,9 @@ func quit(reason error) {
 type LogWriter struct{}
 
 func (w *LogWriter) Write(data []byte) (int, error) {
-	msg := strings.TrimSpace(string(data))
-	line := strings.ReplaceAll(msg, "\n", " | ")
-	logsList.AddItem(line)
+	newLines := strings.Split(strings.TrimSuffix(string(data), "\n"), "\n")
+	logs.AddLines(newLines)
+	logs.ScrollToBottom()
 	renderScreen()
 	return len(data), nil
 }
