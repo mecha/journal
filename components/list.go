@@ -129,7 +129,7 @@ func (l *List) Render(screen t.Screen, bounds Rect, hasFocus bool) {
 
 		style := t.StyleDefault
 		if hasFocus && index == l.cursor {
-			style = theme.CalendarSelect
+			style = theme.ListSelect
 		}
 
 		if index < len(l.items) {

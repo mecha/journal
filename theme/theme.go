@@ -6,6 +6,7 @@ var (
 	Default         = t.StyleDefault
 	Border          = Default
 	BorderFocus     = Border.Bold(true).Foreground(t.ColorGreen)
+	ListSelect      = Default.Bold(true).Foreground(t.ColorBlack).Background(t.ColorBlue)
 	Button          = Default.Bold(true)
 	ButtonFocus     = Button.Foreground(t.ColorBlack).Background(t.ColorGreen)
 	CalendarBorder  = Border.Foreground(t.ColorDimGray)
