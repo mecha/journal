@@ -7,12 +7,21 @@ type Layout struct {
 	focus    FocusProvider
 }
 
-type LayoutProvider func(screen t.Screen, region Rect, hasFocus bool) map[Rect]Component
+type LayoutTile struct {
+	region  Rect
+	content Component
+}
+
+type LayoutProvider func(screen t.Screen, region Rect, hasFocus bool) []LayoutTile
 
 var _ Component = (*Layout)(nil)
 
 func NewLayout(provider LayoutProvider) *Layout {
 	return &Layout{provider, func() Component { return nil }}
+}
+
+func NewLayoutTile(region Rect, content Component) LayoutTile {
+	return LayoutTile{region, content}
 }
 
 func (c *Layout) WithFocus(provider FocusProvider) *Layout {
@@ -26,7 +35,7 @@ func (c *Layout) HandleEvent(ev t.Event) bool {
 
 func (c *Layout) Render(screen t.Screen, region Rect, hasFocus bool) {
 	focus := c.focus()
-	for region, child := range c.provider(screen, region, hasFocus) {
-		child.Render(screen, region, child == focus)
+	for _, tile := range c.provider(screen, region, hasFocus) {
+		tile.content.Render(screen, tile.region, tile.content == focus)
 	}
 }

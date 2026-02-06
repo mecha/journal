@@ -167,16 +167,15 @@ func main() {
 			}
 			previewH := h - logsH - helpH
 			tagsH := h - titleH - calH - logsH - helpH
-			return map[c.Rect]c.Component{
-				c.NewRect(x, y, calW, titleH):          titlePanel,
-				c.NewRect(x, 3, calW, calH):            calendarPanel,
-				c.NewRect(x, 18, calW, tagsH):          tagsMux,
-				c.NewRect(x+calW, y, w-calW, previewH): previewPanel,
-				c.NewRect(x, h-logsH-1, w, logsH):      logsPanel,
-				c.NewRect(x, h-helpH, w, helpH):        helpbar,
-
-				region: confirmDelToggle,
-				c.CenterFit(region, c.NewSize(min(w, 40), 3)): pswdInputToggle,
+			return []c.LayoutTile{
+				c.NewLayoutTile(c.NewRect(x, y, calW, titleH), titlePanel),
+				c.NewLayoutTile(c.NewRect(x, 3, calW, calH), calendarPanel),
+				c.NewLayoutTile(c.NewRect(x, 18, calW, tagsH), tagsMux),
+				c.NewLayoutTile(c.NewRect(x+calW, y, w-calW, previewH), previewPanel),
+				c.NewLayoutTile(c.NewRect(x, h-logsH-1, w, logsH), logsPanel),
+				c.NewLayoutTile(c.NewRect(x, h-helpH, w, helpH), helpbar),
+				c.NewLayoutTile(region, confirmDelToggle),
+				c.NewLayoutTile(c.CenterFit(region, c.NewSize(min(w, 40), 3)), pswdInputToggle),
 			}
 		},
 	).WithFocus(func() c.Component { return focusedComp })
