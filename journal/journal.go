@@ -23,6 +23,7 @@ import (
 // TODO: move to main?
 
 const minGoCryptFSVersion = "2.6.1"
+const MountWaitTime = time.Millisecond * 150
 
 func init() {
 	err := checkMinGoCryptFSVersion()
@@ -92,20 +93,30 @@ func (j *Journal) Mount(password string) error {
 	j.isMounted = true
 	j.command = command
 
+	var execError error = nil
+	var hasReturned = false
 	go func() {
-		err := j.command.Wait()
-		log.Printf("gocryptfs exited, journal has been unmounted: %s", err.Error())
+		execError = j.command.Wait()
+		if execError != nil && hasReturned {
+			log.Printf("journal locked; %s", execError.Error())
+		}
 		j.isMounted = false
 		select {
-		case j.errorChan <- err:
-			// error sent to receiver
+		case j.errorChan <- execError:
 		default:
-			// channel has no receiver, but we don't care so do nothing
 		}
-		j.onUnmountFunc()
+		if hasReturned {
+			j.onUnmountFunc()
+		}
 	}()
 
-	return nil
+	select {
+	case err := <-j.errorChan:
+		hasReturned = true
+		return err
+	case <-time.NewTimer(MountWaitTime).C:
+		return nil
+	}
 }
 
 func (j *Journal) Unmount() error {

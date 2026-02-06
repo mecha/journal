@@ -82,6 +82,9 @@ func main() {
 			updatePreview(day, month, year)
 		})
 	calendarPanel = c.NewPanel("", c.NewKeyHandler(calendar, func(ev *t.EventKey) bool {
+		if !journal.IsMounted() {
+			return false
+		}
 		switch ev.Key() {
 		case t.KeyEnter:
 			journal.EditEntry(calendar.DayUnderCursor())
@@ -297,8 +300,6 @@ func updatePreview(day, month, year int) {
 	}
 }
 
-const MountWaitTime = time.Millisecond * 150
-
 func mountJournal(password string) {
 	if journal.IsMounted() {
 		return
@@ -306,14 +307,13 @@ func mountJournal(password string) {
 
 	err := journal.Mount(password)
 	if err != nil {
-		log.Println(err)
+		log.Println("failed to unlock journal; ", err)
 		return
 	}
 
 	setFocus(calendarPanel)
 	screen.HideCursor()
 
-	time.Sleep(MountWaitTime)
 	updateTags()
 	updatePreview(calendar.DayUnderCursor())
 	renderScreen()
