@@ -7,7 +7,7 @@ type Layout struct {
 	focus    FocusProvider
 }
 
-type LayoutProvider func(screen t.Screen, region Rect, hasFocus bool) []LayoutTile
+type LayoutProvider func(renderer Renderer, hasFocus bool) []LayoutTile
 
 type LayoutTile struct {
 	region  Rect
@@ -35,9 +35,9 @@ func (c *Layout) HandleEvent(ev t.Event) bool {
 	return false
 }
 
-func (c *Layout) Render(screen t.Screen, region Rect, hasFocus bool) {
+func (c *Layout) Render(r Renderer, hasFocus bool) {
 	focus := c.focus()
-	for _, tile := range c.provider(screen, region, hasFocus) {
-		tile.content.Render(screen, tile.region, tile.content == focus)
+	for _, tile := range c.provider(r, hasFocus) {
+		tile.content.Render(RegionFrom(r, tile.region), tile.content == focus)
 	}
 }

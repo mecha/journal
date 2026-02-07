@@ -92,12 +92,13 @@ func (s *Text) HandleEvent(ev t.Event) bool {
 	return true
 }
 
-func (s *Text) Render(screen t.Screen, region Rect, hasFocus bool) {
-	s.lastSize = region.Size
+func (s *Text) Render(r Renderer, hasFocus bool) {
+	width, height := r.Size()
+	s.lastSize = Size{width, height}
 	s.SetScrollPos(s.scroll)
 
 	topLine := max(0, s.scroll.Y)
-	lastLine := min(len(s.lines), topLine+region.H)
+	lastLine := min(len(s.lines), topLine+height)
 
 	if topLine == lastLine {
 		return
@@ -108,9 +109,9 @@ func (s *Text) Render(screen t.Screen, region Rect, hasFocus bool) {
 			continue
 		}
 		left := max(0, s.scroll.X)
-		right := min(len(line), s.scroll.X+region.W)
-		row := utils.FixedString(line[left:right], region.W, " ")
-		screen.PutStrStyled(region.X, region.Y+i, row, s.style)
+		right := min(len(line), s.scroll.X+width)
+		row := utils.FixedString(line[left:right], width, " ")
+		r.PutStrStyled(0, i, row, s.style)
 	}
 }
 

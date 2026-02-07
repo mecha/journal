@@ -1,7 +1,6 @@
 package components
 
 import (
-	"journal-tui/utils"
 	"journal-tui/theme"
 
 	t "github.com/gdamore/tcell/v2"
@@ -25,15 +24,15 @@ func (p *Panel) HandleEvent(ev t.Event) bool {
 	return p.content.HandleEvent(ev)
 }
 
-func (p *Panel) Render(screen t.Screen, region Rect, hasFocus bool) {
-	x, y, w, h := region.XYWH()
+func (p *Panel) Render(r Renderer, hasFocus bool) {
+	w, h := r.Size()
 	style := theme.BorderStyle(hasFocus)
 
-	utils.Box(screen, x, y, w, h, utils.BordersRound, style)
+	DrawBox(r, 0, 0, w, h, BordersRound, style)
 
 	if len(p.title) > 0 {
-		screen.PutStrStyled(x+2, y, p.title, style)
+		r.PutStrStyled(2, 0, p.title, style)
 	}
 
-	p.content.Render(screen, NewRect(x+1, y+1, w-2, h-2), hasFocus)
+	p.content.Render(RegionFrom(r, Rect{Pos{1, 1}, Size{w - 2, h - 2}}), hasFocus)
 }

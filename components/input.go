@@ -85,21 +85,23 @@ func (c *InputComponent) HandleEvent(ev t.Event) bool {
 	return true
 }
 
-func (c *InputComponent) Render(screen t.Screen, bounds Rect, hasFocus bool) {
-	x, y, w, _ := bounds.XYWH()
+func (c *InputComponent) Render(r Renderer, hasFocus bool) {
+	width, _ := r.Size()
+	maxRunes := width - 1
 
-	text := c.text
-	numRunesShown := w - 1
-	if len(c.text) > numRunesShown {
-		text = c.text[len(c.text)-numRunesShown:]
+	var text string
+	if utf8.RuneCountInString(c.text) <= maxRunes {
+		text = c.text
+	} else {
+		text = c.text[len(c.text)-maxRunes:]
 	}
 
 	if c.mask != 0 {
 		text = strings.Repeat(string(c.mask), utf8.RuneCountInString(text))
 	}
 
-	screen.PutStr(x, y, text)
+	r.PutStr(0, 0, text)
 	if hasFocus {
-		screen.ShowCursor(x+min(numRunesShown, c.cursor), y)
+		r.ShowCursor(min(maxRunes, c.cursor), 0)
 	}
 }

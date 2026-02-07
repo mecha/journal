@@ -16,8 +16,8 @@ func (ft *FocusToggle) HandleEvent(ev t.Event) bool {
 	return ft.content.HandleEvent(ev)
 }
 
-func (ft *FocusToggle) Render(screen t.Screen, region Rect, hasFocus bool) {
+func (ft *FocusToggle) Render(r Renderer, hasFocus bool) {
 	if hasFocus {
-		ft.content.Render(screen, region, hasFocus)
+		ft.content.Render(r, hasFocus)
 	}
 }

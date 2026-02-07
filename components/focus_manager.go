@@ -100,6 +100,6 @@ func (fm *FocusManager) HandleEvent(ev t.Event) bool {
 	return false
 }
 
-func (fm *FocusManager) Render(screen t.Screen, region Rect, hasFocus bool) {
-	fm.content.Render(screen, region, hasFocus)
+func (fm *FocusManager) Render(r Renderer, hasFocus bool) {
+	fm.content.Render(r, hasFocus)
 }

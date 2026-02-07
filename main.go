@@ -77,28 +77,34 @@ func main() {
 	}
 
 	Layout = c.NewLayout(
-		func(screen t.Screen, region c.Rect, hasFocus bool) []c.LayoutTile {
-			x, y, w, h := region.XYWH()
-			const titleH = 3
-			const calW = 45
-			const calH = 15
-			const helpH = 1
+		func(r c.Renderer, hasFocus bool) []c.LayoutTile {
+			w, h := r.Size()
+			region := c.NewRect(0, 0, w, h)
+
+			const titleHeight = 3
+			const calWidth = 45
+			const calHeight = 15
+			const helpHeight = 1
+
 			logsH := 6
 			if Focus.Current() == logsPanel {
 				logsH = min(14, h)
 			}
-			previewH := h - logsH - helpH
-			tagsH := h - titleH - calH - logsH - helpH
+
+			tagsH := h - titleHeight - calHeight - logsH - helpHeight
+			previewH := h - logsH - helpHeight
+			inputRect := c.CenterRect(region, min(w, 40), 3)
+
 			return []c.LayoutTile{
-				c.NewLayoutTile(c.NewRect(x, y, calW, titleH), titlePanel),
-				c.NewLayoutTile(c.NewRect(x, 3, calW, calH), calendarPanel),
-				c.NewLayoutTile(c.NewRect(x, 18, calW, tagsH), tagsMux),
-				c.NewLayoutTile(c.NewRect(x+calW, y, w-calW, previewH), previewPanel),
-				c.NewLayoutTile(c.NewRect(x, h-logsH-1, w, logsH), logsPanel),
-				c.NewLayoutTile(c.NewRect(x, h-helpH, w, helpH), helpbar),
+				c.NewLayoutTile(c.NewRect(0, 0, calWidth, titleHeight), titlePanel),
+				c.NewLayoutTile(c.NewRect(0, 3, calWidth, calHeight), calendarPanel),
+				c.NewLayoutTile(c.NewRect(0, 18, calWidth, tagsH), tagsMux),
+				c.NewLayoutTile(c.NewRect(0+calWidth, 0, w-calWidth, previewH), previewPanel),
+				c.NewLayoutTile(c.NewRect(0, h-logsH-1, w, logsH), logsPanel),
+				c.NewLayoutTile(c.NewRect(0, h-helpHeight, w, helpHeight), helpbar),
 				c.NewLayoutTile(region, confirmDelete),
-				c.NewLayoutTile(c.CenterFit(region, c.NewSize(min(w, 40), 3)), passwordInput),
-				c.NewLayoutTile(c.CenterFit(region, c.NewSize(min(w, 40), 3)), goToDayInput),
+				c.NewLayoutTile(inputRect, passwordInput),
+				c.NewLayoutTile(inputRect, goToDayInput),
 			}
 		},
 	).WithFocus(func() c.Component { return Focus.Current() })
@@ -174,11 +180,8 @@ func initScreen() t.Screen {
 }
 
 func renderScreen() {
-	w, h := Screen.Size()
-	region := c.NewRect(0, 0, w, h)
-
 	Screen.Clear()
-	Layout.Render(Screen, region, true)
+	Layout.Render(Screen, true)
 	Screen.Show()
 }
 
@@ -222,9 +225,6 @@ func createCalendar(journal *j.Journal, updatePreview DayCallback) (panel *c.Pan
 			updatePreview(day, month, year)
 		})
 
-	now := time.Now()
-	month, year := int(now.Month()), now.Year()
-
 	confirmDelete = c.NewFocusToggle(
 		c.NewConfirm("Are you sure you want to delete this journal entry?", func(accepted bool) {
 			if accepted {
@@ -264,6 +264,9 @@ func createCalendar(journal *j.Journal, updatePreview DayCallback) (panel *c.Pan
 			),
 		),
 	)
+
+	now := time.Now()
+	month, year := int(now.Month()), now.Year()
 
 	panel = c.NewPanel(
 		formatTitle(month, year),

@@ -28,10 +28,10 @@ func (c *Mux) HandleEvent(ev t.Event) bool {
 	return consumed
 }
 
-func (c *Mux) Render(screen t.Screen, bounds Rect, hasFocus bool) {
+func (c *Mux) Render(r Renderer, hasFocus bool) {
 	if c.current < 0 || c.current >= len(c.children) {
 		panic("invalid current child state in Mux")
 	}
 	child := c.children[c.current]
-	child.Render(screen, bounds, hasFocus)
+	child.Render(r, hasFocus)
 }

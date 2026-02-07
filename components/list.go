@@ -126,11 +126,11 @@ func (l *List[Item]) HandleEvent(ev t.Event) bool {
 	return false
 }
 
-func (l *List[Item]) Render(screen t.Screen, bounds Rect, hasFocus bool) {
-	x, y, w, h := bounds.XYWH()
-	l.lastSize = bounds.Size
+func (l *List[Item]) Render(r Renderer, hasFocus bool) {
+	width, height := r.Size()
+	l.lastSize = Size{width, height}
 
-	for i := range h {
+	for i := range height {
 		index := l.vscroll + i
 
 		style := t.StyleDefault
@@ -140,8 +140,8 @@ func (l *List[Item]) Render(screen t.Screen, bounds Rect, hasFocus bool) {
 
 		if index < len(l.items) {
 			itemStr := l.renderFunc(l.items[index])
-			text := utils.ScrollString(itemStr, l.hscroll, w, " ")
-			screen.PutStrStyled(x, y+i, text, style)
+			text := utils.ScrollString(itemStr, l.hscroll, width, " ")
+			r.PutStrStyled(0, i, text, style)
 		}
 	}
 }

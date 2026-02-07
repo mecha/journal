@@ -29,6 +29,6 @@ func (kh *KeyHandler) HandleEvent(ev t.Event) bool {
 	return consumed
 }
 
-func (kh *KeyHandler) Render(screen t.Screen, bounds Rect, hasFocus bool) {
-	kh.content.Render(screen, bounds, hasFocus)
+func (kh *KeyHandler) Render(r Renderer, hasFocus bool) {
+	kh.content.Render(r, hasFocus)
 }

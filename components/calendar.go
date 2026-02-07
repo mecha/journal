@@ -3,7 +3,7 @@ package components
 import (
 	"fmt"
 	"journal-tui/theme"
-	"journal-tui/utils"
+	"strings"
 	"time"
 
 	t "github.com/gdamore/tcell/v2"
@@ -189,7 +189,7 @@ var calenderHeaders = []string{
 	"Sun",
 }
 
-func (c *Calendar) Render(screen t.Screen, bounds Rect, hasFocus bool) {
+func (c *Calendar) Render(renderer Renderer, hasFocus bool) {
 	const (
 		numCols      = 7
 		numRows      = 7
@@ -198,14 +198,14 @@ func (c *Calendar) Render(screen t.Screen, bounds Rect, hasFocus bool) {
 		headerHeight = 2
 	)
 
-	x, y := bounds.Pos.XY()
-	borderStyle := theme.BorderStyle(hasFocus)
-
-	utils.BoxHorizontalDivider(screen, x-1, y+1, 45, utils.BordersRound, borderStyle)
+	w, _ := renderer.Size()
+	b := BordersRound
+	bs := theme.BorderStyle(hasFocus)
+	renderer.PutStrStyled(-1, 1, b.TRB+strings.Repeat(b.LR, w)+b.TLB, bs)
 
 	for i, header := range calenderHeaders {
 		if len(header) < colWidth {
-			screen.PutStr(x+(i*6)+1, y, header)
+			renderer.PutStr((i*6)+1, 0, header)
 		}
 	}
 
@@ -241,15 +241,15 @@ func (c *Calendar) Render(screen t.Screen, bounds Rect, hasFocus bool) {
 				dayStyle = theme.CalendarDay
 			}
 
-			x := x + 1 + (col * (colWidth + 1))
-			y := y + headerHeight + (row * (rowHeight + 1))
+			x := 1 + (col * (colWidth + 1))
+			y := headerHeight + (row * (rowHeight + 1))
 
-			screen.PutStrStyled(x, y, "    ", dayStyle)
+			renderer.PutStrStyled(x, y, "    ", dayStyle)
 
 			if c.underlineDay != nil && c.underlineDay(day, month, year) {
 				dayStyle = dayStyle.Underline(true)
 			}
-			screen.PutStrStyled(x+1, y, fmt.Sprintf("%02d", day), dayStyle)
+			renderer.PutStrStyled(x+1, y, fmt.Sprintf("%02d", day), dayStyle)
 		}
 	}
 }
