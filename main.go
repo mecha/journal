@@ -38,8 +38,8 @@ var (
 
 	tagsPanel    *c.Panel
 	tagsMux      *c.Mux
-	tagsList     *c.List
-	tagsFileList *c.List
+	tagsList     *c.List[string]
+	tagsFileList *c.List[CalendarDay]
 
 	previewPanel *c.Panel
 	preview      *c.Text
@@ -54,6 +54,8 @@ var (
 
 	pswdInputToggle *c.FocusToggle
 )
+
+type CalendarDay struct{ day, month, year int }
 
 func main() {
 	parseFlags()
@@ -103,24 +105,33 @@ func main() {
 	_, month, year := calendar.DayUnderCursor()
 	updateCalendarPanelTitle(month, year)
 
-	tagsFileList = c.NewList([]string{}).OnEnter(func(i int, item string) {
-		day, month, year := journal.GetEntryAtPath(item)
-		if year == 0 {
-			return
-		}
-		tagsMux.SwitchTo(0)
-		err := journal.EditEntry(day, month, year)
-		if err != nil {
-			log.Print(err)
-		}
-		updatePreview(calendar.DayUnderCursor())
-	})
+	tagsFileList = c.NewList([]CalendarDay{}).
+		RenderWith(func(item CalendarDay) string {
+			date := time.Date(item.year, time.Month(item.month), item.day, 0, 0, 0, 0, time.Local)
+			return date.Format("02 Jan 2006")
+		}).
+		OnEnter(func(i int, item CalendarDay) {
+			tagsMux.SwitchTo(0)
+			err := journal.EditEntry(item.day, item.month, item.year)
+			if err != nil {
+				log.Print(err)
+			}
+			updatePreview(calendar.DayUnderCursor())
+		})
 	tagsList = c.NewList([]string{}).OnEnter(func(i int, item string) {
 		files, err := journal.SearchTag(item)
 		if err != nil {
 			log.Print(err)
 		}
-		tagsFileList.SetItems(files)
+		items := []CalendarDay{}
+		for _, file := range files {
+			day, month, year := journal.GetEntryAtPath(file)
+			if year == 0 {
+				continue
+			}
+			items = append(items, CalendarDay{day, month, year})
+		}
+		tagsFileList.SetItems(items)
 		tagsMux.SwitchTo(1)
 	})
 	tagsMux = c.NewMux([]c.Component{
