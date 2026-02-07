@@ -1,7 +1,7 @@
 package components
 
 import (
-	"journal-tui/render"
+	"journal-tui/utils"
 	"journal-tui/theme"
 	"strings"
 
@@ -70,11 +70,11 @@ func (c *Confirm) Render(screen t.Screen, bounds Rect, hasFocus bool) {
 	bw, bh := bounds.Size.WH()
 	minWidth := len(c.yesButton) + len(c.noButton) + 2
 	width := min(bw, max(40, minWidth))
-	lines := render.WrapString(c.message, width-2)
+	lines := utils.WrapString(c.message, width-2)
 	height := 3 + len(lines)
 	x, y := (bw-width)/2, (bh-height)/2
 
-	render.Box(screen, x, y, width, height, render.RoundedBorders, theme.BorderStyle(hasFocus))
+	utils.Box(screen, x, y, width, height, utils.BordersRound, theme.BorderStyle(hasFocus))
 
 	for i, line := range lines {
 		screen.PutStr(x+1, y+1+i, line)

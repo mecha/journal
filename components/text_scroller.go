@@ -1,7 +1,7 @@
 package components
 
 import (
-	"journal-tui/render"
+	"journal-tui/utils"
 
 	t "github.com/gdamore/tcell/v2"
 )
@@ -24,12 +24,12 @@ func NewTextScroller(lines []string) *Text {
 
 func (s *Text) SetLines(lines []string) *Text {
 	s.lines = lines
-	s.maxLen = render.MaxLength(lines)
+	s.maxLen = utils.MaxLength(lines)
 	return s
 }
 
 func (s *Text) AddLines(lines []string) *Text {
-	s.maxLen = max(s.maxLen, render.MaxLength(lines))
+	s.maxLen = max(s.maxLen, utils.MaxLength(lines))
 	s.lines = append(s.lines, lines...)
 	return s
 }
@@ -104,7 +104,7 @@ func (s *Text) Render(screen t.Screen, region Rect, hasFocus bool) {
 		}
 		left := max(0, s.scroll.X)
 		right := min(len(line), s.scroll.X+region.W)
-		row := render.FixedString(line[left:right], region.W, " ")
+		row := utils.FixedString(line[left:right], region.W, " ")
 		screen.PutStrStyled(region.X, region.Y+i, row, s.style)
 	}
 }

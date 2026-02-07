@@ -2,8 +2,8 @@ package components
 
 import (
 	"fmt"
-	"journal-tui/render"
 	"journal-tui/theme"
+	"journal-tui/utils"
 	"time"
 
 	t "github.com/gdamore/tcell/v2"
@@ -197,7 +197,7 @@ func (c *Calendar) Render(screen t.Screen, bounds Rect, hasFocus bool) {
 	x, y := bounds.Pos.XY()
 	borderStyle := theme.BorderStyle(hasFocus)
 
-	render.BoxHorizontalDivider(screen, x-1, y+1, 45, render.RoundedBorders, borderStyle)
+	utils.BoxHorizontalDivider(screen, x-1, y+1, 45, utils.BordersRound, borderStyle)
 
 	for i, header := range calenderHeaders {
 		if len(header) < colWidth {

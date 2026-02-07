@@ -1,7 +1,7 @@
 package components
 
 import (
-	"journal-tui/render"
+	"journal-tui/utils"
 	"journal-tui/theme"
 
 	t "github.com/gdamore/tcell/v2"
@@ -29,7 +29,7 @@ func (p *Panel) Render(screen t.Screen, region Rect, hasFocus bool) {
 	x, y, w, h := region.XYWH()
 	style := theme.BorderStyle(hasFocus)
 
-	render.Box(screen, x, y, w, h, render.RoundedBorders, style)
+	utils.Box(screen, x, y, w, h, utils.BordersRound, style)
 
 	if len(p.title) > 0 {
 		screen.PutStrStyled(x+2, y, p.title, style)

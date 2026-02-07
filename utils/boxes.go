@@ -1,4 +1,4 @@
-package render
+package utils
 
 import (
 	"strings"
@@ -6,7 +6,7 @@ import (
 	t "github.com/gdamore/tcell/v2"
 )
 
-func Box(screen t.Screen, x, y, w, h int, borders BorderMap, style t.Style) {
+func Box(screen t.Screen, x, y, w, h int, borders BorderSet, style t.Style) {
 	x2, y2 := x+w-1, y+h-1
 
 	screen.Put(x, y, borders.RB, style)
@@ -25,11 +25,11 @@ func Box(screen t.Screen, x, y, w, h int, borders BorderMap, style t.Style) {
 	}
 }
 
-func BoxHorizontalDivider(screen t.Screen, x, y, w int, borders BorderMap, style t.Style) {
+func BoxHorizontalDivider(screen t.Screen, x, y, w int, borders BorderSet, style t.Style) {
 	screen.PutStrStyled(x, y, borders.TRB+strings.Repeat(borders.LR, w-2)+borders.TLB, style)
 }
 
-func BoxVerticalDivider(screen t.Screen, x, y, h int, borders BorderMap, style t.Style) {
+func BoxVerticalDivider(screen t.Screen, x, y, h int, borders BorderSet, style t.Style) {
 	screen.PutStrStyled(x, y, borders.LRB, style)
 	for i := range h - 2 {
 		screen.PutStrStyled(x, y+i+1, borders.TB, style)
@@ -37,11 +37,11 @@ func BoxVerticalDivider(screen t.Screen, x, y, h int, borders BorderMap, style t
 	screen.PutStrStyled(x, y+h-1, borders.TLR, style)
 }
 
-type BorderMap struct {
+type BorderSet struct {
 	LR, TB, RB, LB, TR, TL, LRB, TLR, TLB, TRB, TLRB string
 }
 
-var RoundedBorders = BorderMap{
+var BordersRound = BorderSet{
 	LR:   "─",
 	TB:   "│",
 	RB:   "╭",
@@ -55,7 +55,7 @@ var RoundedBorders = BorderMap{
 	TLRB: "┼",
 }
 
-var SquareBorders = BorderMap{
+var BordersSquare = BorderSet{
 	LR:   "─",
 	TB:   "│",
 	RB:   "┌",

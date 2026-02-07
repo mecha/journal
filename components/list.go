@@ -1,7 +1,7 @@
 package components
 
 import (
-	"journal-tui/render"
+	"journal-tui/utils"
 	"journal-tui/theme"
 	"slices"
 
@@ -80,7 +80,7 @@ func (l *List) ScrollLeft() {
 }
 
 func (l *List) ScrollRight() {
-	maxWidth := render.MaxLength(l.items) - l.lastSize.W + 2
+	maxWidth := utils.MaxLength(l.items) - l.lastSize.W
 	l.hscroll = min(maxWidth, l.hscroll+1)
 }
 
@@ -133,7 +133,7 @@ func (l *List) Render(screen t.Screen, bounds Rect, hasFocus bool) {
 		}
 
 		if index < len(l.items) {
-			text := render.ScrollString(l.items[index], l.hscroll, w, " ")
+			text := utils.ScrollString(l.items[index], l.hscroll, w, " ")
 			screen.PutStrStyled(x, y+i, text, style)
 		}
 	}
