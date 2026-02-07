@@ -6,13 +6,13 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"journal-tui/utils"
 	"log"
 	"maps"
 	"os"
 	"os/exec"
 	"path"
 	"slices"
-	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -240,18 +240,9 @@ func (j *Journal) GetEntryAtPath(path string) (day, month, year int) {
 	}
 
 	relpath := path[len(j.mountPath):]
+	dateStr := strings.TrimSuffix(strings.TrimPrefix(relpath, "/"), ".md")
 
-	parts := strings.Split(relpath, "/")
-	if len(parts) < 3 {
-		return 0, 0, 0
-	}
-	parts = parts[len(parts)-3:]
-
-	var err error
-	year, err = strconv.Atoi(parts[0])
-	month, err = strconv.Atoi(parts[1])
-	day, err = strconv.Atoi(strings.TrimSuffix(parts[2], ".md"))
-
+	year, month, day, err := utils.ParseDayMonthYear(dateStr)
 	if err != nil {
 		return 0, 0, 0
 	}

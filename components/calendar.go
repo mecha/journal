@@ -62,12 +62,16 @@ func (c *Calendar) DayUnderCursor() (day int, month int, year int) {
 	return day, month, year
 }
 
+func (c *Calendar) SetDay(day, month, year int) {
+	c.month, c.year = month, year
+	c.analyzeMonth()
+	c.cursor = c.firstIdx + day - 1
+	c.notifyDayChange()
+}
+
 func (c *Calendar) Today() {
 	now := time.Now()
-	c.month, c.year = int(now.Month()), now.Year()
-	c.analyzeMonth()
-	c.cursor = c.firstIdx + now.Day() - 1
-	c.notifyDayChange()
+	c.SetDay(now.Day(), int(now.Month()), now.Year())
 }
 
 func (c *Calendar) PrevMonth() {

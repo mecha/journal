@@ -11,6 +11,7 @@ import (
 	c "journal-tui/components"
 	j "journal-tui/journal"
 	"journal-tui/theme"
+	"journal-tui/utils"
 
 	t "github.com/gdamore/tcell/v2"
 )
@@ -32,7 +33,7 @@ func main() {
 
 	previewPanel, updatePreview := createPreview(Journal)
 
-	calendarPanel, calendar, confirmDelete := createCalendar(Journal, updatePreview)
+	calendarPanel, calendar, confirmDelete, goToDayInput := createCalendar(Journal, updatePreview)
 
 	tagsMux, updateTags := createTags(Journal, calendar, updatePreview)
 
@@ -65,7 +66,7 @@ func main() {
 
 	helpbar := c.NewText([]string{}).SetStyle(theme.Help)
 	helpMap := map[c.Component]string{
-		calendarPanel: "Select day: ⬍/⬌ | Edit: <ENTER> | Delete: d | Today: t | Next/Previous month: n/p | Exit: q",
+		calendarPanel: "Select day: ⬍/⬌ | Edit: <ENTER> | Delete: d | Today: t | Go to specific day: g | Next/Previous month: n/p | Exit: q",
 		tagsMux:       "Select: ⬍ | View entries: <ENTER>",
 		logsPanel:     "Select: ⬍ | Clear: c",
 		previewPanel:  "Scroll: ⬍",
@@ -95,6 +96,7 @@ func main() {
 				c.NewLayoutTile(c.NewRect(x, h-helpH, w, helpH), helpbar),
 				c.NewLayoutTile(region, confirmDelete),
 				c.NewLayoutTile(c.CenterFit(region, c.NewSize(min(w, 40), 3)), passwordInput),
+				c.NewLayoutTile(c.CenterFit(region, c.NewSize(min(w, 40), 3)), goToDayInput),
 			}
 		},
 	).WithFocus(func() c.Component { return Focus.Current() })
@@ -203,7 +205,7 @@ func createPreview(journal *j.Journal) (*c.Panel, DayCallback) {
 	return previewPanel, updatePreview
 }
 
-func createCalendar(journal *j.Journal, updatePreview DayCallback) (panel *c.Panel, calendar *c.Calendar, confirmDelete *c.FocusToggle) {
+func createCalendar(journal *j.Journal, updatePreview DayCallback) (panel *c.Panel, calendar *c.Calendar, confirmDelete *c.FocusToggle, goToDayInput *c.FocusToggle) {
 	formatTitle := func(month, year int) string {
 		return fmt.Sprintf("[1]─%s %d", time.Month(month).String(), year)
 	}
@@ -233,6 +235,34 @@ func createCalendar(journal *j.Journal, updatePreview DayCallback) (panel *c.Pan
 		}),
 	)
 
+	goToDayInput = c.NewFocusToggle(
+		c.NewPanel("Go to (dd/mm/yyyy)",
+			c.NewKeyHandler(
+				c.NewInputComponent().
+					ClearOnEnter(true).
+					OnEnter(func(s string) {
+						day, month, year, err := utils.ParseDayMonthYear(s)
+						if err != nil {
+							log.Println(err)
+							return
+						}
+						calendar.SetDay(day, month, year)
+						Focus.Pop()
+						Screen.HideCursor()
+						renderScreen()
+					}),
+				func(ev *t.EventKey) bool {
+					if ev.Key() == t.KeyEscape {
+						Focus.Pop()
+						Screen.HideCursor()
+						return true
+					}
+					return false
+				},
+			),
+		),
+	)
+
 	panel = c.NewPanel(
 		formatTitle(month, year),
 		c.NewKeyHandler(calendar,
@@ -251,12 +281,15 @@ func createCalendar(journal *j.Journal, updatePreview DayCallback) (panel *c.Pan
 							Focus.Push(confirmDelete)
 						}
 						return true
+					case 'g':
+						Focus.Push(goToDayInput)
+						return true
 					}
 				}
 				return false
 			}))
 
-	return panel, calendar, confirmDelete
+	return panel, calendar, confirmDelete, goToDayInput
 }
 
 type CalendarDay struct{ day, month, year int }

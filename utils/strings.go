@@ -1,10 +1,45 @@
 package utils
 
 import (
+	"errors"
+	"strconv"
 	"strings"
 
 	"github.com/bbrks/wrap"
 )
+
+func ParseDayMonthYear(s string) (day, month, year int, err error) {
+	day, month, year, err = ParseNumTriplet(s, "/")
+	if err != nil {
+		return 0, 0, 0, errors.New("invalid date format, must be day/month/year")
+	}
+	return day, month, year, nil
+}
+
+func ParseNumTriplet(s string, sep string) (int, int, int, error) {
+	parts := strings.Split(s, sep)
+	if len(parts) != 3 {
+		return 0, 0, 0, errors.New("invalid format")
+	}
+	parts = parts[len(parts)-3:]
+
+	one, err := strconv.Atoi(parts[0])
+	if err != nil {
+		return 0, 0, 0, err
+	}
+
+	two, err := strconv.Atoi(parts[1])
+	if err != nil {
+		return 0, 0, 0, err
+	}
+
+	three, err := strconv.Atoi(parts[2])
+	if err != nil {
+		return 0, 0, 0, err
+	}
+
+	return one, two, three, nil
+}
 
 func FixedString(s string, maxLength int, pad string) string {
 	switch {
