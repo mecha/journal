@@ -7,12 +7,14 @@ type Layout struct {
 	focus    FocusProvider
 }
 
+type LayoutProvider func(screen t.Screen, region Rect, hasFocus bool) []LayoutTile
+
 type LayoutTile struct {
 	region  Rect
 	content Component
 }
 
-type LayoutProvider func(screen t.Screen, region Rect, hasFocus bool) []LayoutTile
+type FocusProvider func() Component
 
 var _ Component = (*Layout)(nil)
 

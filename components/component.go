@@ -3,12 +3,12 @@ package components
 import t "github.com/gdamore/tcell/v2"
 
 type Component interface {
-	HandleEvent(ev t.Event) (consume bool)
+	HandleEvent(ev t.Event) (consumed bool)
 	Render(screen t.Screen, bounds Rect, hasFocus bool)
 }
 
 type RenderFunc func(screen t.Screen, bounds Rect, hasFocus bool)
-type FocusProvider func() Component
+type EventHandlerFunc func(ev t.Event) (consumed bool)
 
 type Pos struct{ X, Y int }
 

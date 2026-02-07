@@ -2,6 +2,7 @@ package components
 
 import (
 	"journal-tui/utils"
+	"strings"
 
 	t "github.com/gdamore/tcell/v2"
 )
@@ -16,7 +17,7 @@ type Text struct {
 	style    t.Style
 }
 
-func NewTextScroller(lines []string) *Text {
+func NewText(lines []string) *Text {
 	s := &Text{}
 	s.SetLines(lines)
 	return s
@@ -43,6 +44,10 @@ func (s *Text) SetScrollPos(pos Pos) *Text {
 	s.scroll.X = max(0, min(s.maxLen-s.lastSize.W, pos.X))
 	s.scroll.Y = max(0, min(len(s.lines)-s.lastSize.H, pos.Y))
 	return s
+}
+
+func (s *Text) Writer() *TextWriter {
+	return &TextWriter{s, nil}
 }
 
 func (s *Text) ScrollBy(x, y int) { s.SetScrollPos(s.scroll.Add(x, y)) }
@@ -107,4 +112,23 @@ func (s *Text) Render(screen t.Screen, region Rect, hasFocus bool) {
 		row := utils.FixedString(line[left:right], region.W, " ")
 		screen.PutStrStyled(region.X, region.Y+i, row, s.style)
 	}
+}
+
+type TextWriter struct {
+	component *Text
+	callback  func()
+}
+
+func (w *TextWriter) Write(data []byte) (int, error) {
+	newLines := strings.Split(strings.TrimSuffix(string(data), "\n"), "\n")
+	w.component.AddLines(newLines)
+	w.component.ScrollToBottom()
+	if w.callback != nil {
+		w.callback()
+	}
+	return len(data), nil
+}
+
+func (w *TextWriter) OnWrite(callback func()) {
+	w.callback = callback
 }

@@ -18,11 +18,16 @@ type InputComponent struct {
 
 var _ Component = (*InputComponent)(nil)
 
-func NewInputComponent(onEnter func(value string)) *InputComponent {
+func NewInputComponent() *InputComponent {
 	return &InputComponent{
-		onEnterFunc: onEnter,
+		onEnterFunc: func(value string) {},
 		mask:        0,
 	}
+}
+
+func (in *InputComponent) OnEnter(onEnter func(value string)) *InputComponent {
+	in.onEnterFunc = onEnter
+	return in
 }
 
 func (in *InputComponent) ClearOnEnter(clearOnEnter bool) *InputComponent {
@@ -65,8 +70,12 @@ func (c *InputComponent) HandleEvent(ev t.Event) bool {
 			}
 
 		case t.KeyEnter:
-			c.onEnterFunc(c.text)
-			c.SetValue("")
+			if c.onEnterFunc != nil {
+				c.onEnterFunc(c.text)
+				if c.clearOnEnter {
+					c.SetValue("")
+				}
+			}
 		}
 	}
 	return false
