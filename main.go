@@ -51,6 +51,7 @@ func main() {
 							return
 						}
 
+						log.Println("Unlocked journal")
 						Focus.Pop()
 						Screen.HideCursor()
 
@@ -223,8 +224,10 @@ func createCalendar(journal *j.Journal, updatePreview DayCallback) (panel *c.Pan
 	confirmDelete = c.NewFocusToggle(
 		c.NewConfirm("Are you sure you want to delete this journal entry?", func(accepted bool) {
 			if accepted {
-				journal.DeleteEntry(calendar.DayUnderCursor())
-				updatePreview(calendar.DayUnderCursor())
+				day, month, year := calendar.DayUnderCursor()
+				journal.DeleteEntry(day, month, year)
+				log.Printf("deleted entry: %s", Journal.EntryPath(day, month, year))
+				updatePreview(day, month, year)
 			}
 			Focus.Pop()
 		}),

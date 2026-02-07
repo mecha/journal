@@ -216,12 +216,14 @@ func (j *Journal) EditEntry(day, month, year int) error {
 		if err != nil {
 			return err
 		}
+		log.Printf("created new entry: %s", filepath)
 	}
 
 	date := time.Date(year, time.Month(month), day, 0, 0, 0, 0, time.Local)
 	winTitle := date.Format("02 Jan 2006")
 	cmd := exec.Command("tmux", "neww", "-n", winTitle, "nvim", filepath)
 	cmd.Run()
+	log.Printf("opened entry for editing: %s", filepath)
 
 	return nil
 }
