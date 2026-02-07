@@ -16,6 +16,8 @@ import (
 	t "github.com/gdamore/tcell/v2"
 )
 
+const Version = "0.1.0"
+
 var (
 	Screen  t.Screen
 	Journal *j.Journal
@@ -29,7 +31,7 @@ func main() {
 	Screen = initScreen()
 	Journal = j.NewJournal(Flags.path, Flags.mntPath, Flags.idleTimeout)
 
-	titlePanel := c.NewPanel("", c.NewText([]string{"Journal v0.1.0"}))
+	titlePanel := c.NewPanel("", c.NewText([]string{"Journal v" + Version}))
 
 	previewPanel, updatePreview := createPreview(Journal)
 
