@@ -7,9 +7,9 @@ import (
 )
 
 type FocusManager struct {
-	content        Component
-	quicklist      []Component
-	stack          []Component
+	content          Component
+	quicklist        []Component
+	stack            []Component
 	onFocusChangedFn func(current Component)
 }
 
@@ -62,6 +62,15 @@ func (fm *FocusManager) OnFocusChanged(fn func(current Component)) *FocusManager
 
 func (fm *FocusManager) HandleEvent(ev t.Event) bool {
 	current := fm.Current()
+	consumed := false
+
+	if current != nil {
+		consumed = current.HandleEvent(ev)
+	}
+
+	if consumed {
+		return true
+	}
 
 	if ev, ok := ev.(*t.EventKey); ok {
 		switch key := ev.Key(); key {
@@ -88,12 +97,7 @@ func (fm *FocusManager) HandleEvent(ev t.Event) bool {
 		}
 	}
 
-	if current == nil {
-		return false
-	}
-
-	consumed := current.HandleEvent(ev)
-	return consumed
+	return false
 }
 
 func (fm *FocusManager) Render(screen t.Screen, region Rect, hasFocus bool) {
