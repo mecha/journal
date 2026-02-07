@@ -7,27 +7,28 @@ type Component interface {
 	Render(renderer Renderer, hasFocus bool)
 }
 
-type RenderFunc func(renderer Renderer, hasFocus bool)
-type EventHandlerFunc func(ev t.Event) (consumed bool)
-
-type customComponent struct {
-	RenderFunc
-	EventHandlerFunc
+type customComponent[S any] struct {
+	state S
+	RenderFunc[S]
+	EventHandlerFunc[S]
 }
 
-func NewComponent(render RenderFunc, eventHandler EventHandlerFunc) *customComponent {
-	return &customComponent{render, eventHandler}
+type RenderFunc[S any] func(state S, renderer Renderer, hasFocus bool)
+type EventHandlerFunc[S any] func(state S, ev t.Event) (consumed bool)
+
+func NewComponent[S any](state S, render RenderFunc[S], eventHandler EventHandlerFunc[S]) *customComponent[S] {
+	return &customComponent[S]{state, render, eventHandler}
 }
 
-func (f *customComponent) HandleEvent(ev t.Event) bool {
+func (f *customComponent[State]) Render(r Renderer, hasFocus bool) {
+	if f.RenderFunc != nil {
+		f.RenderFunc(f.state, r, hasFocus)
+	}
+}
+
+func (f *customComponent[State]) HandleEvent(ev t.Event) bool {
 	if f.EventHandlerFunc != nil {
-		return f.EventHandlerFunc(ev)
+		return f.EventHandlerFunc(f.state, ev)
 	}
 	return false
-}
-
-func (f *customComponent) Render(r Renderer, hasFocus bool) {
-	if f.RenderFunc != nil {
-		f.RenderFunc(r, hasFocus)
-	}
 }
