@@ -48,8 +48,12 @@ func (c *InputComponent) SetMask(mask rune) *InputComponent {
 
 func (c *InputComponent) HandleEvent(ev t.Event) bool {
 	switch ev := ev.(type) {
+	default:
+		return false
 	case *t.EventKey:
 		switch ev.Key() {
+		default:
+			return false
 		case t.KeyRune:
 			if c.cursor == len(c.text) {
 				c.text += string(ev.Rune())
@@ -78,7 +82,7 @@ func (c *InputComponent) HandleEvent(ev t.Event) bool {
 			}
 		}
 	}
-	return false
+	return true
 }
 
 func (c *InputComponent) Render(screen t.Screen, bounds Rect, hasFocus bool) {
