@@ -138,16 +138,17 @@ func (j *Journal) Unmount() error {
 	return nil
 }
 
-func (j *Journal) EntryPath(day int, month int, year int) string {
+func (j *Journal) EntryPath(date time.Time) string {
+	day, month, year := date.Day(), int(date.Month()), date.Year()
 	return fmt.Sprintf("%s/%02d/%02d/%02d.md", j.mountPath, year, month, day)
 }
 
-func (j *Journal) HasEntry(day int, month int, year int) (bool, error) {
+func (j *Journal) HasEntry(date time.Time) (bool, error) {
 	if !j.isMounted {
 		return false, nil
 	}
 
-	filepath := j.EntryPath(day, month, year)
+	filepath := j.EntryPath(date)
 	_, err := os.Stat(filepath)
 	if os.IsNotExist(err) {
 		return false, nil
@@ -158,12 +159,12 @@ func (j *Journal) HasEntry(day int, month int, year int) (bool, error) {
 	return true, nil
 }
 
-func (j *Journal) GetEntry(day, month, year int) (string, bool, error) {
+func (j *Journal) GetEntry(date time.Time) (string, bool, error) {
 	if !j.isMounted {
 		return "", false, nil
 	}
 
-	filepath := j.EntryPath(day, month, year)
+	filepath := j.EntryPath(date)
 	content, err := os.ReadFile(filepath)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -176,12 +177,12 @@ func (j *Journal) GetEntry(day, month, year int) (string, bool, error) {
 	return string(content), true, nil
 }
 
-func (j *Journal) CreateEntry(day int, month int, year int) (string, error) {
+func (j *Journal) CreateEntry(date time.Time) (string, error) {
 	if !j.isMounted {
 		return "", errors.New("journal is not mounted")
 	}
 
-	filepath := j.EntryPath(day, month, year)
+	filepath := j.EntryPath(date)
 	dirpath := path.Dir(filepath)
 
 	err := os.MkdirAll(dirpath, 0740)
@@ -195,7 +196,7 @@ func (j *Journal) CreateEntry(day int, month int, year int) (string, error) {
 	}
 	defer file.Close()
 
-	title := j.EntryTitle(day, month, year)
+	title := j.EntryTitle(date)
 	_, err = file.WriteString("# " + title + "\n\n")
 	if err != nil {
 		return "", err
@@ -205,21 +206,20 @@ func (j *Journal) CreateEntry(day int, month int, year int) (string, error) {
 	return filepath, err
 }
 
-func (j *Journal) EditEntry(day, month, year int) error {
+func (j *Journal) EditEntry(date time.Time) error {
 	if !j.isMounted {
 		return errors.New("journal is not mounted")
 	}
 
-	filepath := j.EntryPath(day, month, year)
+	filepath := j.EntryPath(date)
 	if _, err := os.Stat(filepath); os.IsNotExist(err) {
-		_, err := j.CreateEntry(day, month, year)
+		_, err := j.CreateEntry(date)
 		if err != nil {
 			return err
 		}
 		log.Printf("created new entry: %s", filepath)
 	}
 
-	date := time.Date(year, time.Month(month), day, 0, 0, 0, 0, time.Local)
 	winTitle := date.Format("02 Jan 2006")
 	cmd := exec.Command("tmux", "neww", "-n", winTitle, "nvim", filepath)
 	cmd.Run()
@@ -228,10 +228,8 @@ func (j *Journal) EditEntry(day, month, year int) error {
 	return nil
 }
 
-func (j *Journal) EntryTitle(day, month, year int) string {
-	date := time.Date(year, time.Month(month), day, 0, 0, 0, 0, time.Local)
-	title := date.Format("Mon - 02 Jan 2006")
-	return title
+func (j *Journal) EntryTitle(date time.Time) string {
+	return date.Format("Mon - 02 Jan 2006")
 }
 
 func (j *Journal) GetEntryAtPath(path string) (day, month, year int) {
@@ -249,8 +247,8 @@ func (j *Journal) GetEntryAtPath(path string) (day, month, year int) {
 	return day, month, year
 }
 
-func (j *Journal) DeleteEntry(day, month, year int) error {
-	path := j.EntryPath(day, month, year)
+func (j *Journal) DeleteEntry(date time.Time) error {
+	path := j.EntryPath(date)
 	err := os.Remove(path)
 	return err
 }

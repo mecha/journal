@@ -17,8 +17,8 @@ type Calendar struct {
 	lastIdx         int
 	numDays         int
 	prevNumDays     int
-	underlineDay    func(day, month, year int) bool
-	onDayChangeFunc func(day, month, year int)
+	underlineDay    func(time.Time) bool
+	onDayChangeFunc func(time.Time)
 }
 
 var _ Component = (*Calendar)(nil)
@@ -34,18 +34,18 @@ func NewCalendar() *Calendar {
 	return c
 }
 
-func (c *Calendar) UnderlineDay(fn func(day, month, year int) bool) *Calendar {
+func (c *Calendar) UnderlineDay(fn func(time.Time) bool) *Calendar {
 	c.underlineDay = fn
 	return c
 }
 
-func (c *Calendar) OnDayChanged(callback func(day, month, year int)) *Calendar {
+func (c *Calendar) OnDayChanged(callback func(time.Time)) *Calendar {
 	c.onDayChangeFunc = callback
 	return c
 }
 
-func (c *Calendar) Current() (day int, month int, year int) {
-	day, month, year = 1, c.month, c.year
+func (c *Calendar) Current() time.Time {
+	day, month, year := 1, c.month, c.year
 
 	switch {
 	case c.cursor < c.firstIdx:
@@ -59,7 +59,7 @@ func (c *Calendar) Current() (day int, month int, year int) {
 	}
 
 	month, year = normalizeMonthsAndYears(month, year)
-	return day, month, year
+	return time.Date(year, time.Month(month), day, 0, 0, 0, 0, time.Local)
 }
 
 func (c *Calendar) SetDay(day, month, year int) {
@@ -76,17 +76,17 @@ func (c *Calendar) Today() {
 
 func (c *Calendar) PrevMonth() {
 	c.month, c.year = normalizeMonthsAndYears(c.month-1, c.year)
-	day, _, _ := c.Current()
+	current := c.Current()
 	c.analyzeMonth()
-	c.cursor = c.firstIdx + day - 1
+	c.cursor = c.firstIdx + current.Day() - 1
 	c.notifyDayChange()
 }
 
 func (c *Calendar) NextMonth() {
 	c.month, c.year = normalizeMonthsAndYears(c.month+1, c.year)
-	day, _, _ := c.Current()
+	current := c.Current()
 	c.analyzeMonth()
-	c.cursor = c.firstIdx + day - 1
+	c.cursor = c.firstIdx + current.Day() - 1
 	c.notifyDayChange()
 }
 
@@ -228,7 +228,6 @@ func (c *Calendar) Render(renderer Renderer, hasFocus bool) {
 			}
 
 			month, year = normalizeMonthsAndYears(month, year)
-
 			dayStyle := theme.CalendarDay()
 
 			if idx < c.firstIdx || idx > c.lastIdx {
@@ -246,7 +245,8 @@ func (c *Calendar) Render(renderer Renderer, hasFocus bool) {
 
 			renderer.PutStrStyled(x, y, "    ", dayStyle)
 
-			if c.underlineDay != nil && c.underlineDay(day, month, year) {
+			date := time.Date(year, time.Month(month), day, 0, 0, 0, 0, time.Local)
+			if c.underlineDay != nil && c.underlineDay(date) {
 				dayStyle = dayStyle.Underline(true)
 			}
 			renderer.PutStrStyled(x+1, y, fmt.Sprintf("%02d", day), dayStyle)

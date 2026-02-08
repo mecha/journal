@@ -12,23 +12,19 @@ import (
 	t "github.com/gdamore/tcell/v2"
 )
 
-type DayCallback func(day, month, year int)
-
 type TagBrowser struct {
 	journal      *j.Journal
 	tagList      *c.List[string]
-	fileList     *c.List[CalendarDay]
+	fileList     *c.List[time.Time]
 	selectedTag  string
 	resetPreview func()
 }
 
-type CalendarDay struct{ day, month, year int }
-
-func CreateTagBrowser(journal *j.Journal, updatePreview DayCallback, resetPreview func()) *TagBrowser {
+func CreateTagBrowser(journal *j.Journal, updatePreview func(time.Time), resetPreview func()) *TagBrowser {
 	b := &TagBrowser{
 		journal:      journal,
 		tagList:      c.NewList([]string{}),
-		fileList:     c.NewList([]CalendarDay{}),
+		fileList:     c.NewList([]time.Time{}),
 		selectedTag:  "",
 		resetPreview: resetPreview,
 	}
@@ -40,11 +36,11 @@ func CreateTagBrowser(journal *j.Journal, updatePreview DayCallback, resetPrevie
 				log.Print(err)
 			}
 
-			items := []CalendarDay{}
+			items := []time.Time{}
 			for _, file := range files {
 				day, month, year := b.journal.GetEntryAtPath(file)
 				if year > 0 {
-					items = append(items, CalendarDay{day, month, year})
+					items = append(items, time.Date(year, time.Month(month), day, 0, 0, 0, 0, time.Local))
 				}
 			}
 
@@ -53,15 +49,14 @@ func CreateTagBrowser(journal *j.Journal, updatePreview DayCallback, resetPrevie
 		})
 
 	b.fileList.
-		RenderWith(func(item CalendarDay) string {
-			date := time.Date(item.year, time.Month(item.month), item.day, 0, 0, 0, 0, time.Local)
-			return date.Format("02 Jan 2006")
+		RenderWith(func(item time.Time) string {
+			return item.Format("02 Jan 2006")
 		}).
-		OnSelect(func(i int, item CalendarDay) {
-			updatePreview(item.day, item.month, item.year)
+		OnSelect(func(i int, item time.Time) {
+			updatePreview(item)
 		}).
-		OnEnter(func(i int, item CalendarDay) {
-			err := b.journal.EditEntry(item.day, item.month, item.year)
+		OnEnter(func(i int, item time.Time) {
+			err := b.journal.EditEntry(item)
 			if err != nil {
 				log.Print(err)
 			}

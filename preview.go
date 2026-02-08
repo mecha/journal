@@ -46,9 +46,9 @@ func (p *PreviewComp) Render(r c.Renderer, hasFocus bool) {
 	p.panel.Render(r, hasFocus)
 }
 
-func (p *PreviewComp) Update(day, month, year int) {
+func (p *PreviewComp) Update(date time.Time) {
 	if p.journal.IsMounted() {
-		entry, has, err := p.journal.GetEntry(day, month, year)
+		entry, has, err := p.journal.GetEntry(date)
 		switch {
 		case err != nil:
 			log.Println(err)

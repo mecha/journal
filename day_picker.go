@@ -23,8 +23,8 @@ type DayPicker struct {
 
 func CreateDayPicker(journal *j.Journal, preview *PreviewComp) *DayPicker {
 	calendar := c.NewCalendar().
-		UnderlineDay(func(day, month, year int) bool {
-			hasEntry, _ := journal.HasEntry(day, month, year)
+		UnderlineDay(func(date time.Time) bool {
+			hasEntry, _ := journal.HasEntry(date)
 			return hasEntry
 		}).
 		OnDayChanged(preview.Update)
@@ -53,10 +53,10 @@ func CreateDayPicker(journal *j.Journal, preview *PreviewComp) *DayPicker {
 			}),
 		confirmDelete: c.NewConfirm("Are you sure you want to delete this journal entry?", func(accepted bool) {
 			if accepted {
-				day, month, year := calendar.Current()
-				journal.DeleteEntry(day, month, year)
-				log.Printf("deleted entry: %s", Journal.EntryPath(day, month, year))
-				preview.Update(day, month, year)
+				date := calendar.Current()
+				journal.DeleteEntry(date)
+				log.Printf("deleted entry: %s", Journal.EntryPath(date))
+				preview.Update(date)
 			}
 			Focus.Pop()
 		}),
@@ -101,8 +101,8 @@ func (d *DayPicker) HandleEvent(ev t.Event) bool {
 }
 
 func (dp *DayPicker) Render(r c.Renderer, hasFocus bool) {
-	_, month, year := dp.calendar.Current()
-	title := fmt.Sprintf("[1]─%s %d", time.Month(month).String(), year)
+	date := dp.calendar.Current()
+	title := fmt.Sprintf("[1]─%s %d", date.Month().String(), date.Year())
 	panelRegion := c.DrawPanel(r, title, theme.Borders(hasFocus))
 
 	dp.calendar.Render(panelRegion, hasFocus)
