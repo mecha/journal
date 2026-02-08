@@ -11,7 +11,7 @@ func CreateLogs() *c.Panel {
 	logText := c.NewText([]string{})
 
 	writer := logText.Writer()
-	writer.OnWrite(renderScreen)
+	writer.OnWrite(RenderScreen)
 	log.SetOutput(writer)
 
 	return c.NewPanel("[4]─Log", logText)

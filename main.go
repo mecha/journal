@@ -24,7 +24,15 @@ var (
 func main() {
 	parseFlags()
 
-	Screen = initScreen()
+	var err error
+	Screen, err = t.NewScreen()
+	if err != nil {
+		log.Fatal(err)
+	}
+	if err = Screen.Init(); err != nil {
+		log.Fatal(err)
+	}
+
 	Journal = j.NewJournal(Flags.path, Flags.mntPath, Flags.idleTimeout)
 
 	titlePanel := c.NewPanel("", c.NewText([]string{"Journal v" + Version}))
@@ -63,7 +71,7 @@ func main() {
 
 					tagBrowser.UpdateTags()
 					resetPreview()
-					renderScreen()
+					RenderScreen()
 				}
 			},
 		),
@@ -128,7 +136,7 @@ func main() {
 		Focus.Push(passwordInput)
 		tagBrowser.UpdateTags()
 		resetPreview()
-		renderScreen()
+		RenderScreen()
 	})
 
 	defer func() {
@@ -145,47 +153,38 @@ func main() {
 
 	for {
 		ev := Screen.PollEvent()
-
-		switch ev := ev.(type) {
-		case *t.EventResize:
-			Screen.Sync()
-
-		case *t.EventKey:
-			switch key := ev.Key(); key {
-			case t.KeyRune:
-				switch ev.Rune() {
-				case 'q':
-					quit(nil)
-				}
-			case t.KeyCtrlC:
-				quit(nil)
-			}
-		}
-
-		Focus.HandleEvent(ev)
-
-		renderScreen()
+		HandleEvent(ev)
+		RenderScreen()
 	}
 }
 
-func initScreen() t.Screen {
-	screen, err := t.NewScreen()
-	if err != nil {
-		log.Fatal(err)
-	}
-	if err = screen.Init(); err != nil {
-		log.Fatal(err)
-	}
-	return screen
-}
-
-func renderScreen() {
+func RenderScreen() {
 	Screen.Clear()
 	Layout.Render(Screen, true)
 	Screen.Show()
 }
 
-func quit(reason error) {
+func HandleEvent(ev t.Event) {
+	switch ev := ev.(type) {
+	case *t.EventResize:
+		Screen.Sync()
+
+	case *t.EventKey:
+		switch key := ev.Key(); key {
+		case t.KeyRune:
+			switch ev.Rune() {
+			case 'q':
+				Quit(nil)
+			}
+		case t.KeyCtrlC:
+			Quit(nil)
+		}
+	}
+
+	Focus.HandleEvent(ev)
+}
+
+func Quit(reason error) {
 	log.SetOutput(os.Stdout)
 	Screen.Fini()
 

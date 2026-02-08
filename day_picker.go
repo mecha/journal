@@ -49,7 +49,7 @@ func CreateDayPicker(journal *j.Journal, preview *PreviewComp) *DayPicker {
 				input.SetValue("")
 				Screen.HideCursor()
 				Focus.Pop()
-				renderScreen()
+				RenderScreen()
 			}),
 		confirmDelete: c.NewConfirm("Are you sure you want to delete this journal entry?", func(accepted bool) {
 			if accepted {
