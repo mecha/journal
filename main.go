@@ -37,7 +37,7 @@ func main() {
 	}
 
 	tagBrowser := CreateTagBrowser(Journal, preview.Update, resetPreview)
-	logsPanel := createLogs()
+	logsPanel := CreateLogs()
 
 	passwordInput := c.NewFocusToggle(
 		c.NewInputPrompt("Password",
@@ -183,16 +183,6 @@ func renderScreen() {
 	Screen.Clear()
 	Layout.Render(Screen, true)
 	Screen.Show()
-}
-
-func createLogs() *c.Panel {
-	logText := c.NewText([]string{})
-
-	writer := logText.Writer()
-	writer.OnWrite(renderScreen)
-	log.SetOutput(writer)
-
-	return c.NewPanel("[4]─Log", logText)
 }
 
 func quit(reason error) {

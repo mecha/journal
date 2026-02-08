@@ -1,10 +1,21 @@
 package main
 
 import (
+	"log"
 	"strings"
 
 	c "journal-tui/components"
 )
+
+func CreateLogs() *c.Panel {
+	logText := c.NewText([]string{})
+
+	writer := logText.Writer()
+	writer.OnWrite(renderScreen)
+	log.SetOutput(writer)
+
+	return c.NewPanel("[4]─Log", logText)
+}
 
 type LogWriter struct {
 	component *c.Text
