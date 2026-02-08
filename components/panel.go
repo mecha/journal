@@ -37,14 +37,13 @@ func (p *Panel) Render(r Renderer, hasFocus bool) {
 	p.content.Render(RegionFrom(r, Rect{Pos{1, 1}, Size{w - 2, h - 2}}), hasFocus)
 }
 
-func DrawPanel(r Renderer, title string, style t.Style, hasFocus bool) *Region {
+func DrawPanel(r Renderer, title string, style t.Style) *Region {
 	w, h := r.Size()
-	borderStyle := theme.Borders(hasFocus, style)
 
-	DrawBox(r, 0, 0, w, h, BordersRound, borderStyle)
+	DrawBox(r, 0, 0, w, h, BordersRound, style)
 
 	if len(title) > 0 {
-		r.PutStrStyled(2, 0, title, borderStyle)
+		r.PutStrStyled(2, 0, title, style)
 	}
 
 	return RegionFrom(r, Rect{Pos{1, 1}, Size{w - 2, h - 2}})

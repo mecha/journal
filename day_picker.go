@@ -7,6 +7,7 @@ import (
 
 	c "journal-tui/components"
 	j "journal-tui/journal"
+	"journal-tui/theme"
 	"journal-tui/utils"
 
 	t "github.com/gdamore/tcell/v2"
@@ -102,7 +103,7 @@ func (d *DayPicker) HandleEvent(ev t.Event) bool {
 func (dp *DayPicker) Render(r c.Renderer, hasFocus bool) {
 	_, month, year := dp.calendar.Current()
 	title := fmt.Sprintf("[1]─%s %d", time.Month(month).String(), year)
-	panelRegion := c.DrawPanel(r, title, t.StyleDefault, hasFocus)
+	panelRegion := c.DrawPanel(r, title, theme.Borders(hasFocus))
 
 	dp.calendar.Render(panelRegion, hasFocus)
 

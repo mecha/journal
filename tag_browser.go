@@ -7,6 +7,7 @@ import (
 
 	c "journal-tui/components"
 	j "journal-tui/journal"
+	"journal-tui/theme"
 
 	t "github.com/gdamore/tcell/v2"
 )
@@ -107,7 +108,7 @@ func (b *TagBrowser) Render(r c.Renderer, hasFocus bool) {
 		title += " > References"
 	}
 
-	region := c.DrawPanel(r, title, t.StyleDefault, hasFocus)
+	region := c.DrawPanel(r, title, theme.Borders(hasFocus))
 
 	if isShowingFiles {
 		b.fileList.Render(region, hasFocus)

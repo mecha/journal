@@ -43,6 +43,6 @@ func (p *InputPrompt) HandleEvent(ev t.Event) bool {
 
 func (p *InputPrompt) Render(r Renderer, hasFocus bool) {
 	r.Fill(' ', theme.Dialog())
-	panelRegion := DrawPanel(r, p.title, theme.Dialog(), hasFocus)
+	panelRegion := DrawPanel(r, p.title, theme.Borders(hasFocus, theme.Dialog()))
 	p.input.Render(panelRegion, hasFocus)
 }
