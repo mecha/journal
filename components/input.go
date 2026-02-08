@@ -1,52 +1,51 @@
 package components
 
 import (
+	"journal-tui/theme"
 	"strings"
 	"unicode/utf8"
 
 	t "github.com/gdamore/tcell/v2"
 )
 
-type InputComponent struct {
-	onEnterFunc  func(value string)
-	clearOnEnter bool
-	mask         rune
+type Input struct {
+	onEnterFunc func(input *Input)
+	mask        rune
 
 	text   string
 	cursor int
 }
 
-var _ Component = (*InputComponent)(nil)
+var _ Component = (*Input)(nil)
 
-func NewInputComponent() *InputComponent {
-	return &InputComponent{
-		onEnterFunc: func(value string) {},
+func NewInput() *Input {
+	return &Input{
+		onEnterFunc: nil,
 		mask:        0,
 	}
 }
 
-func (in *InputComponent) OnEnter(onEnter func(value string)) *InputComponent {
+func (in *Input) OnEnter(onEnter func(input *Input)) *Input {
 	in.onEnterFunc = onEnter
 	return in
 }
 
-func (in *InputComponent) ClearOnEnter(clearOnEnter bool) *InputComponent {
-	in.clearOnEnter = clearOnEnter
-	return in
+func (c *Input) Value() string {
+	return c.text
 }
 
-func (c *InputComponent) SetValue(value string) *InputComponent {
+func (c *Input) SetValue(value string) *Input {
 	c.text = value
 	c.cursor = len(c.text)
 	return c
 }
 
-func (c *InputComponent) SetMask(mask rune) *InputComponent {
+func (c *Input) SetMask(mask rune) *Input {
 	c.mask = mask
 	return c
 }
 
-func (c *InputComponent) HandleEvent(ev t.Event) bool {
+func (c *Input) HandleEvent(ev t.Event) bool {
 	switch ev := ev.(type) {
 	default:
 		return false
@@ -75,17 +74,14 @@ func (c *InputComponent) HandleEvent(ev t.Event) bool {
 
 		case t.KeyEnter:
 			if c.onEnterFunc != nil {
-				c.onEnterFunc(c.text)
-				if c.clearOnEnter {
-					c.SetValue("")
-				}
+				c.onEnterFunc(c)
 			}
 		}
 	}
 	return true
 }
 
-func (c *InputComponent) Render(r Renderer, hasFocus bool) {
+func (c *Input) Render(r Renderer, hasFocus bool) {
 	width, _ := r.Size()
 	maxRunes := width - 1
 
@@ -100,7 +96,8 @@ func (c *InputComponent) Render(r Renderer, hasFocus bool) {
 		text = strings.Repeat(string(c.mask), utf8.RuneCountInString(text))
 	}
 
-	r.PutStr(0, 0, text)
+	r.Fill(' ', theme.Input())
+	r.PutStrStyled(0, 0, text, theme.Input())
 	if hasFocus {
 		r.ShowCursor(min(maxRunes, c.cursor), 0)
 	}

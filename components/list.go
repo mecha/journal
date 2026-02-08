@@ -133,14 +133,13 @@ func (l *List[Item]) Render(r Renderer, hasFocus bool) {
 	for i := range height {
 		index := l.vscroll + i
 
-		style := t.StyleDefault
-		if hasFocus && index == l.cursor {
-			style = theme.ListSelect
-		}
-
 		if index < len(l.items) {
 			itemStr := l.renderFunc(l.items[index])
 			text := utils.ScrollString(itemStr, l.hscroll, width, " ")
+
+			isSelected := hasFocus && index == l.cursor
+			style := theme.ListItem(isSelected)
+
 			r.PutStrStyled(0, i, text, style)
 		}
 	}

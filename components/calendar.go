@@ -44,7 +44,7 @@ func (c *Calendar) OnDayChanged(callback func(day, month, year int)) *Calendar {
 	return c
 }
 
-func (c *Calendar) DayUnderCursor() (day int, month int, year int) {
+func (c *Calendar) Current() (day int, month int, year int) {
 	day, month, year = 1, c.month, c.year
 
 	switch {
@@ -76,7 +76,7 @@ func (c *Calendar) Today() {
 
 func (c *Calendar) PrevMonth() {
 	c.month, c.year = normalizeMonthsAndYears(c.month-1, c.year)
-	day, _, _ := c.DayUnderCursor()
+	day, _, _ := c.Current()
 	c.analyzeMonth()
 	c.cursor = c.firstIdx + day - 1
 	c.notifyDayChange()
@@ -84,7 +84,7 @@ func (c *Calendar) PrevMonth() {
 
 func (c *Calendar) NextMonth() {
 	c.month, c.year = normalizeMonthsAndYears(c.month+1, c.year)
-	day, _, _ := c.DayUnderCursor()
+	day, _, _ := c.Current()
 	c.analyzeMonth()
 	c.cursor = c.firstIdx + day - 1
 	c.notifyDayChange()
@@ -124,7 +124,7 @@ func (c *Calendar) DayDown() {
 
 func (c *Calendar) notifyDayChange() {
 	if c.onDayChangeFunc != nil {
-		c.onDayChangeFunc(c.DayUnderCursor())
+		c.onDayChangeFunc(c.Current())
 	}
 }
 
@@ -200,7 +200,7 @@ func (c *Calendar) Render(renderer Renderer, hasFocus bool) {
 
 	w, _ := renderer.Size()
 	b := BordersRound
-	bs := theme.BorderStyle(hasFocus)
+	bs := theme.Borders(hasFocus)
 	renderer.PutStrStyled(-1, 1, b.TRB+strings.Repeat(b.LR, w)+b.TLB, bs)
 
 	for i, header := range calenderHeaders {
@@ -229,16 +229,16 @@ func (c *Calendar) Render(renderer Renderer, hasFocus bool) {
 
 			month, year = normalizeMonthsAndYears(month, year)
 
-			dayStyle := t.StyleDefault
+			var dayStyle t.Style
 			switch {
 			case idx == c.cursor:
-				dayStyle = theme.CalendarSelect
+				dayStyle = theme.CalendarSelect()
 			case idx < c.firstIdx || idx > c.lastIdx:
-				dayStyle = theme.CalendarOutside
+				dayStyle = theme.CalendarOutside()
 			case day == today.Day() && month == int(today.Month()) && year == today.Year():
-				dayStyle = theme.CalendarToday
+				dayStyle = theme.CalendarToday()
 			default:
-				dayStyle = theme.CalendarDay
+				dayStyle = theme.CalendarDay()
 			}
 
 			x := 1 + (col * (colWidth + 1))

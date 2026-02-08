@@ -28,6 +28,8 @@ func (fm *FocusManager) Current() Component {
 	return fm.stack[len(fm.stack)-1]
 }
 
+func (fm *FocusManager) Is(c Component) bool { return fm.Current() == c }
+
 // Switches current focus to a new component, preserving previous stack entries
 func (fm *FocusManager) SwitchTo(c Component) {
 	if len(fm.stack) == 0 {

@@ -1,6 +1,7 @@
 package components
 
 import (
+	"journal-tui/theme"
 	"strings"
 
 	t "github.com/gdamore/tcell/v2"
@@ -98,9 +99,15 @@ func RegionFrom(parent Renderer, rect Rect) *Region {
 	return &Region{parent, rect}
 }
 
+func CenteredRegion(parent Renderer, w, h int) *Region {
+	pw, ph := parent.Size()
+	rect := CenterRect(Rect{Pos{0, 0}, Size{pw, ph}}, w, h)
+	return &Region{parent, rect}
+}
+
 func (r *Region) Fill(rune rune, style t.Style) {
 	for dy := range r.Rect.H {
-		r.Renderer.PutStr(r.X, r.Y+dy, strings.Repeat(string(rune), r.Rect.W))
+		r.Renderer.PutStrStyled(r.X, r.Y+dy, strings.Repeat(string(rune), r.Rect.W), style)
 	}
 }
 
@@ -181,4 +188,20 @@ func DrawBox(r Renderer, x, y, w, h int, borders BorderSet, style t.Style) {
 		r.Put(x, y+i+1, borders.TB, style)
 		r.Put(x2, y+i+1, borders.TB, style)
 	}
+}
+
+func DrawButton(r Renderer, x, y int, text string, underline rune, hasFocus bool) int {
+	btnStyle := theme.Button(hasFocus)
+	fullText := "  " + text + "  "
+
+	r.PutStrStyled(x, y, fullText, btnStyle)
+
+	if underline > 0 {
+		i := strings.IndexRune(text, underline)
+		if i >= 0 {
+			r.PutStrStyled(x+2+i, y, string(underline), btnStyle.Underline(true))
+		}
+	}
+
+	return len(fullText)
 }

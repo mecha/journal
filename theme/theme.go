@@ -3,34 +3,74 @@ package theme
 import t "github.com/gdamore/tcell/v2"
 
 var (
-	Default         = t.StyleDefault
-	Border          = Default
-	BorderFocus     = Border.Bold(true).Foreground(t.ColorGreen)
-	ListSelect      = Default.Bold(true).Foreground(t.ColorBlack).Background(t.ColorBlue)
-	Button          = Default.Bold(true)
-	ButtonFocus     = Button.Foreground(t.ColorBlack).Background(t.ColorGreen)
-	CalendarBorder  = Border.Foreground(t.ColorDimGray)
-	CalendarDay     = Default
-	CalendarHeader  = CalendarDay
-	CalendarSelect  = Default.Bold(true).Foreground(t.ColorBlack).Background(t.ColorBlue)
-	CalendarToday   = Default.Bold(true).Foreground(t.ColorYellow)
-	CalendarOutside = Default.Foreground(t.ColorDimGray)
-	CalendarDot     = CalendarDay.Foreground(t.ColorGreen)
-	Help            = Default.Foreground(t.ColorAqua)
+	Input = func(s ...t.Style) t.Style {
+		return extend(s)
+	}
+	Dialog = func(s ...t.Style) t.Style {
+		return extend(s)
+	}
+	BordersNormal = func(s ...t.Style) t.Style {
+		return extend(s)
+	}
+	BordersFocus = func(s ...t.Style) t.Style {
+		return extend(s).Bold(true).Foreground(t.ColorGreen)
+	}
+	ListNormal = func(s ...t.Style) t.Style {
+		return extend(s)
+	}
+	ListSelect = func(s ...t.Style) t.Style {
+		return extend(s).Bold(true).Foreground(t.ColorBlack).Background(t.ColorBlue)
+	}
+	ButtonNormal = func(s ...t.Style) t.Style {
+		return extend(s).Bold(true)
+	}
+	ButtonFocus = func(s ...t.Style) t.Style {
+		return ButtonNormal(s...).Foreground(t.ColorBlack).Background(t.ColorGreen)
+	}
+	CalendarDay = func(s ...t.Style) t.Style {
+		return extend(s)
+	}
+	CalendarSelect = func(s ...t.Style) t.Style {
+		return extend(s).Bold(true).Foreground(t.ColorBlack).Background(t.ColorBlue)
+	}
+	CalendarToday = func(s ...t.Style) t.Style {
+		return extend(s).Bold(true).Foreground(t.ColorYellow)
+	}
+	CalendarOutside = func(s ...t.Style) t.Style {
+		return extend(s).Foreground(t.ColorDimGray)
+	}
+	Help = func(s ...t.Style) t.Style {
+		return extend(s).Foreground(t.ColorAqua)
+	}
 )
 
-func BorderStyle(hasFocus bool) t.Style {
+func extend(base []t.Style) t.Style {
+	if len(base) > 0 {
+		return base[0]
+	}
+	return t.StyleDefault
+}
+
+func Borders(hasFocus bool, base ...t.Style) t.Style {
 	if hasFocus {
-		return BorderFocus
+		return BordersFocus(extend(base))
 	} else {
-		return Border
+		return BordersNormal(extend(base))
 	}
 }
 
-func ButtonStyle(hasFocus bool) t.Style {
+func Button(hasFocus bool, base ...t.Style) t.Style {
 	if hasFocus {
-		return ButtonFocus
+		return ButtonFocus(extend(base))
 	} else {
-		return Button
+		return ButtonNormal(extend(base))
+	}
+}
+
+func ListItem(isSelected bool, base ...t.Style) t.Style {
+	if isSelected {
+		return ListSelect(extend(base))
+	} else {
+		return ListNormal(extend(base))
 	}
 }

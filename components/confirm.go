@@ -1,8 +1,8 @@
 package components
 
 import (
-	"journal-tui/utils"
 	"journal-tui/theme"
+	"journal-tui/utils"
 	"strings"
 
 	t "github.com/gdamore/tcell/v2"
@@ -77,7 +77,10 @@ func (c *Confirm) Render(r Renderer, hasFocus bool) {
 
 	x, y := (bw-width)/2, (bh-height)/2
 
-	DrawBox(r, x, y, width, height, BordersRound, theme.BorderStyle(hasFocus))
+	region := CenteredRegion(r, width, height)
+
+	region.Fill(' ', theme.Dialog())
+	DrawBox(r, x, y, width, height, BordersRound, theme.Borders(hasFocus, theme.Dialog()))
 
 	for i, line := range lines {
 		r.PutStr(x+1, y+1+i, line)
@@ -86,17 +89,9 @@ func (c *Confirm) Render(r Renderer, hasFocus bool) {
 	right := x + width - 1
 	buttonY := y + height - 2
 
-	noButtonStyle := theme.ButtonStyle(c.buttonFocused%2 == 1)
-	noButtonText := "  " + c.noButton + "  "
-	noButtonPos := right - 2 - len(noButtonText)
+	noBtnX := right - 2 - len(c.noButton) - 4
+	yesBtnX := noBtnX - 1 - len(c.yesButton) - 4
 
-	yesButtonStyle := theme.ButtonStyle(c.buttonFocused%2 == 0)
-	yesButtonText := "  " + c.yesButton + "  "
-	yesButtonPos := noButtonPos - 1 - len(yesButtonText)
-
-	r.PutStrStyled(noButtonPos, buttonY, noButtonText, noButtonStyle)
-	r.PutStrStyled(noButtonPos+2, buttonY, c.noButton[:1], noButtonStyle.Underline(true))
-
-	r.PutStrStyled(yesButtonPos, buttonY, yesButtonText, yesButtonStyle)
-	r.PutStrStyled(yesButtonPos+2, buttonY, c.yesButton[:1], yesButtonStyle.Underline(true))
+	DrawButton(r, noBtnX, buttonY, c.noButton, rune(c.noButton[0]), c.buttonFocused%2 == 1)
+	DrawButton(r, yesBtnX, buttonY, c.yesButton, rune(c.yesButton[0]), c.buttonFocused%2 == 0)
 }

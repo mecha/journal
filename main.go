@@ -33,46 +33,52 @@ func main() {
 
 	titlePanel := c.NewPanel("", c.NewText([]string{"Journal v" + Version}))
 
-	previewPanel, updatePreview := createPreview(Journal)
+	preview := CreatePreview(Journal)
+	dayPicker := CreateDayPicker(Journal, preview)
 
-	calendarPanel, calendar, confirmDelete, goToDayInput := createCalendar(Journal, updatePreview)
+	resetPreview := func() {
+		preview.Update(dayPicker.calendar.Current())
+	}
 
-	tagsMux, updateTags := createTags(Journal, calendar, updatePreview)
-
+	tagBrowser := CreateTagBrowser(Journal, preview.Update, resetPreview)
 	logsPanel := createLogs()
 
 	passwordInput := c.NewFocusToggle(
-		c.NewPanel("Password",
-			c.NewInputComponent().
-				SetMask('*').
-				ClearOnEnter(true).
-				OnEnter(func(password string) {
-					if !Journal.IsMounted() {
-						err := Journal.Mount(password)
-						if err != nil {
-							log.Println("failed to unlock journal; ", err)
-							return
-						}
+		c.NewInputPrompt("Password",
+			c.NewInput().SetMask('*'),
+			func(input *c.Input, cancelled bool) {
+				if cancelled {
+					return
+				}
 
-						log.Println("Unlocked journal")
-						Focus.Pop()
-						Screen.HideCursor()
+				password := input.Value()
+				input.SetValue("")
 
-						updateTags()
-						updatePreview(calendar.DayUnderCursor())
-						renderScreen()
+				if !Journal.IsMounted() {
+					err := Journal.Mount(password)
+					if err != nil {
+						log.Println("failed to unlock journal; ", err)
+						return
 					}
-				}),
+
+					log.Println("Unlocked journal")
+					Focus.Pop()
+					Screen.HideCursor()
+
+					tagBrowser.UpdateTags()
+					resetPreview()
+					renderScreen()
+				}
+			},
 		),
 	)
 
-	helpbar := c.NewText([]string{}).SetStyle(theme.Help)
+	helpbar := c.NewText([]string{}).SetStyle(theme.Help())
 	helpMap := map[c.Component]string{
-		calendarPanel: "Select day: ⬍/⬌ | Edit: <ENTER> | Delete: d | Today: t | Go to specific day: g | Next/Previous month: n/p | Exit: q",
-		tagsMux:       "Select: ⬍ | View entries: <ENTER>",
+		dayPicker:     "Select day: ⬍/⬌ | Edit: <ENTER> | Delete: d | Today: t | Go to specific day: g | Next/Previous month: n/p | Exit: q",
+		tagBrowser:    "Select: ⬍ | View entries: <ENTER>",
 		logsPanel:     "Select: ⬍ | Clear: c",
-		previewPanel:  "Scroll: ⬍",
-		confirmDelete: "Delete: y | Keep: n/<ESC>",
+		preview:       "Scroll: ⬍",
 		passwordInput: "Submit: <enter>",
 	}
 
@@ -97,14 +103,12 @@ func main() {
 
 			return []c.LayoutTile{
 				c.NewLayoutTile(c.NewRect(0, 0, calWidth, titleHeight), titlePanel),
-				c.NewLayoutTile(c.NewRect(0, 3, calWidth, calHeight), calendarPanel),
-				c.NewLayoutTile(c.NewRect(0, 18, calWidth, tagsH), tagsMux),
-				c.NewLayoutTile(c.NewRect(0+calWidth, 0, w-calWidth, previewH), previewPanel),
+				c.NewLayoutTile(c.NewRect(0+calWidth, 0, w-calWidth, previewH), preview),
 				c.NewLayoutTile(c.NewRect(0, h-logsH-1, w, logsH), logsPanel),
+				c.NewLayoutTile(c.NewRect(0, 3, calWidth, calHeight), dayPicker),
+				c.NewLayoutTile(c.NewRect(0, 18, calWidth, tagsH), tagBrowser),
 				c.NewLayoutTile(c.NewRect(0, h-helpHeight, w, helpHeight), helpbar),
-				c.NewLayoutTile(region, confirmDelete),
 				c.NewLayoutTile(inputRect, passwordInput),
-				c.NewLayoutTile(inputRect, goToDayInput),
 			}
 		},
 	).WithFocus(func() c.Component { return Focus.Current() })
@@ -112,22 +116,22 @@ func main() {
 	Focus = c.NewFocusManager(
 		Layout,
 		[]c.Component{
-			calendarPanel,
-			tagsMux,
-			previewPanel,
+			dayPicker,
+			tagBrowser,
+			preview,
 			logsPanel,
 		}).
 		OnFocusChanged(func(current c.Component) {
 			helpbar.SetLines([]string{helpMap[current]})
 		})
 
-	Focus.SwitchTo(calendarPanel)
+	Focus.SwitchTo(dayPicker)
 	Focus.Push(passwordInput)
 
 	Journal.OnUnmount(func() {
 		Focus.Push(passwordInput)
-		updateTags()
-		updatePreview(0, 0, 0)
+		tagBrowser.UpdateTags()
+		resetPreview()
 		renderScreen()
 	})
 
@@ -139,7 +143,7 @@ func main() {
 
 	go func() {
 		for range time.NewTicker(3 * time.Second).C {
-			updateTags()
+			tagBrowser.UpdateTags()
 		}
 	}()
 
@@ -187,188 +191,267 @@ func renderScreen() {
 
 type DayCallback func(day, month, year int)
 
-func createPreview(journal *j.Journal) (*c.Panel, DayCallback) {
-	previewText := c.NewText([]string{})
-	previewPanel := c.NewPanel("[3]─Preview", previewText)
-
-	updatePreview := func(day, month, year int) {
-		if journal.IsMounted() {
-			entry, has, err := journal.GetEntry(day, month, year)
-			switch {
-			case err != nil:
-				log.Println(err)
-			case has:
-				previewText.SetLines(strings.Split(entry, "\n"))
-			default:
-				previewText.SetLines([]string{"[No entry]"})
-			}
-		} else {
-			previewText.SetLines([]string{"[Journal is locked]"})
-		}
-	}
-
-	return previewPanel, updatePreview
+type Preview struct {
+	panel *c.Panel
+	text  *c.Text
 }
 
-func createCalendar(journal *j.Journal, updatePreview DayCallback) (panel *c.Panel, calendar *c.Calendar, confirmDelete *c.FocusToggle, goToDayInput *c.FocusToggle) {
-	formatTitle := func(month, year int) string {
-		return fmt.Sprintf("[1]─%s %d", time.Month(month).String(), year)
-	}
+type EventUpdatePreview struct {
+	day, month, year int
+}
 
-	calendar = c.NewCalendar().
+func (ev *EventUpdatePreview) When() time.Time { return time.Now() } // we care when, just return now() lmao
+
+type PreviewComp struct {
+	journal *j.Journal
+	panel   *c.Panel
+	text    *c.Text
+}
+
+func CreatePreview(journal *j.Journal) *PreviewComp {
+	text := c.NewText([]string{})
+
+	return &PreviewComp{
+		journal,
+		c.NewPanel("[3]─Preview", text),
+		text,
+	}
+}
+
+func (p *PreviewComp) HandleEvent(ev t.Event) bool {
+	return p.panel.HandleEvent(ev)
+}
+
+func (p *PreviewComp) Render(r c.Renderer, hasFocus bool) {
+	p.panel.Render(r, hasFocus)
+}
+
+func (p *PreviewComp) Update(day, month, year int) {
+	if p.journal.IsMounted() {
+		entry, has, err := p.journal.GetEntry(day, month, year)
+		switch {
+		case err != nil:
+			log.Println(err)
+		case has:
+			p.text.SetLines(strings.Split(entry, "\n"))
+		default:
+			p.text.SetLines([]string{"[No entry]"})
+		}
+	} else {
+		p.text.SetLines([]string{"[Journal is locked]"})
+	}
+}
+
+type DayPicker struct {
+	journal       *j.Journal
+	preview       *PreviewComp
+	calendar      *c.Calendar
+	confirmDelete *c.Confirm
+	gotoPrompt    *c.InputPrompt
+}
+
+func CreateDayPicker(journal *j.Journal, preview *PreviewComp) *DayPicker {
+	calendar := c.NewCalendar().
 		UnderlineDay(func(day, month, year int) bool {
 			hasEntry, _ := journal.HasEntry(day, month, year)
 			return hasEntry
 		}).
-		OnDayChanged(func(day, month, year int) {
-			panel.SetTitle(formatTitle(month, year))
-			updatePreview(day, month, year)
-		})
+		OnDayChanged(preview.Update)
 
-	confirmDelete = c.NewFocusToggle(
-		c.NewConfirm("Are you sure you want to delete this journal entry?", func(accepted bool) {
+	return &DayPicker{
+		journal:  journal,
+		preview:  preview,
+		calendar: calendar,
+		gotoPrompt: c.NewInputPrompt(
+			"Go to (dd/mm/yyyy)",
+			c.NewInput(),
+			func(input *c.Input, cancelled bool) {
+				if !cancelled {
+					value := input.Value()
+					day, month, year, err := utils.ParseDayMonthYear(value)
+					if err == nil {
+						calendar.SetDay(day, month, year)
+					} else {
+						log.Println(err)
+					}
+				}
+				input.SetValue("")
+				Screen.HideCursor()
+				Focus.Pop()
+				renderScreen()
+			}),
+		confirmDelete: c.NewConfirm("Are you sure you want to delete this journal entry?", func(accepted bool) {
 			if accepted {
-				day, month, year := calendar.DayUnderCursor()
+				day, month, year := calendar.Current()
 				journal.DeleteEntry(day, month, year)
 				log.Printf("deleted entry: %s", Journal.EntryPath(day, month, year))
-				updatePreview(day, month, year)
+				preview.Update(day, month, year)
 			}
 			Focus.Pop()
 		}),
-	)
+	}
+}
 
-	goToDayInput = c.NewFocusToggle(
-		c.NewPanel("Go to (dd/mm/yyyy)",
-			c.NewKeyHandler(
-				c.NewInputComponent().
-					ClearOnEnter(true).
-					OnEnter(func(s string) {
-						day, month, year, err := utils.ParseDayMonthYear(s)
-						if err != nil {
-							log.Println(err)
-							return
-						}
-						calendar.SetDay(day, month, year)
-						Focus.Pop()
-						Screen.HideCursor()
-						renderScreen()
-					}),
-				func(ev *t.EventKey) bool {
-					if ev.Key() == t.KeyEscape {
-						Focus.Pop()
-						Screen.HideCursor()
-						return true
-					}
-					return false
-				},
-			),
-		),
-	)
+func (d *DayPicker) HandleEvent(ev t.Event) bool {
+	if !d.journal.IsMounted() {
+		return false
+	}
 
-	now := time.Now()
-	month, year := int(now.Month()), now.Year()
+	if Focus.Is(d.confirmDelete) && d.confirmDelete.HandleEvent(ev) {
+		return true
+	}
 
-	panel = c.NewPanel(
-		formatTitle(month, year),
-		c.NewKeyHandler(calendar,
-			func(ev *t.EventKey) bool {
-				if !journal.IsMounted() {
-					return false
+	if Focus.Is(d.gotoPrompt) && d.gotoPrompt.HandleEvent(ev) {
+		return true
+	}
+
+	switch ev := ev.(type) {
+	case *t.EventKey:
+		switch ev.Key() {
+		case t.KeyEnter:
+			d.journal.EditEntry(d.calendar.Current())
+			d.preview.Update(d.calendar.Current())
+			return true
+		case t.KeyRune:
+			switch ev.Rune() {
+			case 'd':
+				if has, _ := d.journal.HasEntry(d.calendar.Current()); has {
+					Focus.Push(d.confirmDelete)
 				}
-				switch ev.Key() {
-				case t.KeyEnter:
-					journal.EditEntry(calendar.DayUnderCursor())
-					updatePreview(calendar.DayUnderCursor())
-				case t.KeyRune:
-					switch ev.Rune() {
-					case 'd':
-						if has, _ := journal.HasEntry(calendar.DayUnderCursor()); has {
-							Focus.Push(confirmDelete)
-						}
-						return true
-					case 'g':
-						Focus.Push(goToDayInput)
-						return true
-					}
-				}
-				return false
-			}))
+				return true
+			case 'g':
+				Focus.Push(d.gotoPrompt)
+				return true
+			}
+		}
+	}
 
-	return panel, calendar, confirmDelete, goToDayInput
+	return d.calendar.HandleEvent(ev)
+}
+
+func (dp *DayPicker) Render(r c.Renderer, hasFocus bool) {
+	_, month, year := dp.calendar.Current()
+	title := fmt.Sprintf("[1]─%s %d", time.Month(month).String(), year)
+	panelRegion := c.DrawPanel(r, title, t.StyleDefault, hasFocus)
+
+	dp.calendar.Render(panelRegion, hasFocus)
+
+	popupRegion := c.CenteredRegion(Screen, 40, 3)
+
+	if Focus.Is(dp.gotoPrompt) {
+		dp.gotoPrompt.Render(popupRegion, true)
+	}
+
+	if Focus.Is(dp.confirmDelete) {
+		dp.confirmDelete.Render(popupRegion, true)
+	}
+}
+
+type TagBrowser struct {
+	journal     *j.Journal
+	tagList     *c.List[string]
+	fileList    *c.List[CalendarDay]
+	selectedTag string
 }
 
 type CalendarDay struct{ day, month, year int }
 
-func createTags(journal *j.Journal, calendar *c.Calendar, updatePreview DayCallback) (mux *c.Mux, updateTags func()) {
-	fileList := c.NewList([]CalendarDay{}).
-		RenderWith(func(item CalendarDay) string {
-			date := time.Date(item.year, time.Month(item.month), item.day, 0, 0, 0, 0, time.Local)
-			return date.Format("02 Jan 2006")
-		}).
-		OnEnter(func(i int, item CalendarDay) {
-			err := journal.EditEntry(item.day, item.month, item.year)
-			if err != nil {
-				log.Print(err)
-			}
-			mux.SwitchTo(0)
-			updatePreview(calendar.DayUnderCursor())
-		})
+func CreateTagBrowser(journal *j.Journal, updatePreview DayCallback, resetPreview func()) *TagBrowser {
+	b := &TagBrowser{
+		journal:     journal,
+		tagList:     c.NewList([]string{}),
+		fileList:    c.NewList([]CalendarDay{}),
+		selectedTag: "",
+	}
 
-	tagList := c.NewList([]string{}).
-		OnEnter(func(i int, item string) {
-			files, err := journal.SearchTag(item)
+	b.tagList.
+		OnEnter(func(i int, tag string) {
+			files, err := b.journal.SearchTag(tag)
 			if err != nil {
 				log.Print(err)
 			}
 
 			items := []CalendarDay{}
 			for _, file := range files {
-				day, month, year := journal.GetEntryAtPath(file)
+				day, month, year := b.journal.GetEntryAtPath(file)
 				if year > 0 {
 					items = append(items, CalendarDay{day, month, year})
 				}
 			}
 
-			fileList.SetItems(items)
-			mux.SwitchTo(1)
+			b.fileList.SetItems(items)
+			b.selectedTag = tag
 		})
 
-	mux = c.NewMux([]c.Component{
-		c.NewPanel("[2]─Tags", tagList),
-		c.NewPanel("[2]─Tags > References",
-			c.NewKeyHandler(fileList,
-				func(ev *t.EventKey) bool {
-					if ev.Key() == t.KeyEscape {
-						mux.SwitchTo(0)
-						return true
-					}
-					return false
-				}),
-		),
-	})
+	b.fileList.
+		RenderWith(func(item CalendarDay) string {
+			date := time.Date(item.year, time.Month(item.month), item.day, 0, 0, 0, 0, time.Local)
+			return date.Format("02 Jan 2006")
+		}).
+		OnEnter(func(i int, item CalendarDay) {
+			err := b.journal.EditEntry(item.day, item.month, item.year)
+			if err != nil {
+				log.Print(err)
+			}
+			b.selectedTag = ""
+			resetPreview()
+		})
 
-	updateTags = func() {
-		if journal.IsMounted() {
-			tags, _ := journal.Tags()
-			slices.Sort(tags)
-			tagList.SetItems(tags)
-		} else {
-			tagList.SetItems([]string{})
+	return b
+}
+
+func (b *TagBrowser) UpdateTags() {
+	if b.journal.IsMounted() {
+		tags, _ := b.journal.Tags()
+		slices.Sort(tags)
+		b.tagList.SetItems(tags)
+	} else {
+		b.tagList.SetItems([]string{})
+	}
+}
+
+func (b *TagBrowser) HandleEvent(ev t.Event) bool {
+	switch ev := ev.(type) {
+	case *t.EventKey:
+		switch ev.Key() {
+		case t.KeyEscape:
+			b.selectedTag = ""
+			return true
 		}
 	}
 
-	return mux, updateTags
+	if b.selectedTag == "" {
+		return b.tagList.HandleEvent(ev)
+	} else {
+		return b.fileList.HandleEvent(ev)
+	}
+}
+
+func (b *TagBrowser) Render(r c.Renderer, hasFocus bool) {
+	isShowingFiles := len(b.selectedTag) > 0
+
+	title := "[2]─Tags"
+	if isShowingFiles {
+		title += " > References"
+	}
+
+	region := c.DrawPanel(r, title, t.StyleDefault, hasFocus)
+
+	if isShowingFiles {
+		b.fileList.Render(region, hasFocus)
+	} else {
+		b.tagList.Render(region, hasFocus)
+	}
 }
 
 func createLogs() *c.Panel {
 	logText := c.NewText([]string{})
-	logsPanel := c.NewPanel("[4]─Log", logText)
 
 	writer := logText.Writer()
 	writer.OnWrite(renderScreen)
 	log.SetOutput(writer)
 
-	return logsPanel
+	return c.NewPanel("[4]─Log", logText)
 }
 
 func quit(reason error) {
