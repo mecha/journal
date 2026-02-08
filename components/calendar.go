@@ -229,16 +229,16 @@ func (c *Calendar) Render(renderer Renderer, hasFocus bool) {
 
 			month, year = normalizeMonthsAndYears(month, year)
 
-			var dayStyle t.Style
-			switch {
-			case idx == c.cursor:
-				dayStyle = theme.CalendarSelect()
-			case idx < c.firstIdx || idx > c.lastIdx:
-				dayStyle = theme.CalendarOutside()
-			case day == today.Day() && month == int(today.Month()) && year == today.Year():
-				dayStyle = theme.CalendarToday()
-			default:
-				dayStyle = theme.CalendarDay()
+			dayStyle := theme.CalendarDay()
+
+			if idx < c.firstIdx || idx > c.lastIdx {
+				dayStyle = theme.CalendarOutside(dayStyle)
+			}
+			if idx == c.cursor {
+				dayStyle = theme.CalendarSelect(dayStyle)
+			}
+			if day == today.Day() && month == int(today.Month()) && year == today.Year() {
+				dayStyle = theme.CalendarToday(dayStyle)
 			}
 
 			x := 1 + (col * (colWidth + 1))

@@ -31,7 +31,7 @@ var (
 		return extend(s)
 	}
 	CalendarSelect = func(s ...t.Style) t.Style {
-		return extend(s).Bold(true).Foreground(t.ColorBlack).Background(t.ColorBlue)
+		return extend(s).Foreground(t.ColorBlack).Background(t.ColorBlue)
 	}
 	CalendarToday = func(s ...t.Style) t.Style {
 		return extend(s).Bold(true).Foreground(t.ColorYellow)
