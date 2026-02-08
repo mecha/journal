@@ -6,21 +6,20 @@ import (
 	"time"
 
 	c "journal-tui/components"
-	j "journal-tui/journal"
 	"journal-tui/theme"
 
 	t "github.com/gdamore/tcell/v2"
 )
 
 type TagBrowser struct {
-	journal      *j.Journal
+	journal      *Journal
 	tagList      *c.List[string]
 	fileList     *c.List[time.Time]
 	selectedTag  string
 	resetPreview func()
 }
 
-func CreateTagBrowser(journal *j.Journal, updatePreview func(time.Time), resetPreview func()) *TagBrowser {
+func CreateTagBrowser(journal *Journal, updatePreview func(time.Time), resetPreview func()) *TagBrowser {
 	b := &TagBrowser{
 		journal:      journal,
 		tagList:      c.NewList([]string{}),

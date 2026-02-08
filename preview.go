@@ -6,18 +6,17 @@ import (
 	"time"
 
 	c "journal-tui/components"
-	j "journal-tui/journal"
 	"journal-tui/theme"
 
 	t "github.com/gdamore/tcell/v2"
 )
 
 type Preview struct {
-	journal *j.Journal
+	journal *Journal
 	text    *c.Text
 }
 
-func CreatePreview(journal *j.Journal) *Preview {
+func CreatePreview(journal *Journal) *Preview {
 	text := c.NewText([]string{})
 	return &Preview{journal, text}
 }

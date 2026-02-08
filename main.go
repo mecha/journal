@@ -6,7 +6,6 @@ import (
 	"time"
 
 	c "journal-tui/components"
-	j "journal-tui/journal"
 	"journal-tui/theme"
 
 	t "github.com/gdamore/tcell/v2"
@@ -16,7 +15,7 @@ const Version = "0.1.0"
 
 var (
 	Screen  t.Screen
-	Journal *j.Journal
+	journal *Journal
 	Focus   *c.FocusManager
 	Layout  *c.Layout
 )
@@ -33,18 +32,18 @@ func main() {
 		log.Fatal(err)
 	}
 
-	Journal = j.NewJournal(Flags.path, Flags.mntPath, Flags.idleTimeout)
+	journal = NewJournal(Flags.path, Flags.mntPath, Flags.idleTimeout)
 
 	titlePanel := c.NewPanel("", c.NewText([]string{"Journal v" + Version}))
 
-	preview := CreatePreview(Journal)
-	dayPicker := CreateDayPicker(Journal, preview)
+	preview := CreatePreview(journal)
+	dayPicker := CreateDayPicker(journal, preview)
 
 	resetPreview := func() {
 		preview.Update(dayPicker.calendar.Current())
 	}
 
-	tagBrowser := CreateTagBrowser(Journal, preview.Update, resetPreview)
+	tagBrowser := CreateTagBrowser(journal, preview.Update, resetPreview)
 	logsPanel := CreateLogs()
 
 	passwordInput := c.NewFocusToggle(
@@ -58,8 +57,8 @@ func main() {
 				password := input.Value()
 				input.SetValue("")
 
-				if !Journal.IsMounted() {
-					err := Journal.Mount(password)
+				if !journal.IsMounted() {
+					err := journal.Mount(password)
 					if err != nil {
 						log.Println("failed to unlock journal; ", err)
 						return
@@ -132,7 +131,7 @@ func main() {
 	Focus.SwitchTo(dayPicker)
 	Focus.Push(passwordInput)
 
-	Journal.OnUnmount(func() {
+	journal.OnUnmount(func() {
 		Focus.Push(passwordInput)
 		tagBrowser.UpdateTags()
 		resetPreview()
@@ -142,7 +141,7 @@ func main() {
 	defer func() {
 		recover()
 		log.SetOutput(os.Stdout)
-		Journal.Unmount()
+		journal.Unmount()
 	}()
 
 	go func() {
@@ -192,7 +191,7 @@ func Quit(reason error) {
 		log.Println(reason)
 	}
 
-	err := Journal.Unmount()
+	err := journal.Unmount()
 	if err != nil {
 		log.Println(err)
 	}

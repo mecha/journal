@@ -1,4 +1,4 @@
-package journal
+package main
 
 import (
 	"bufio"
@@ -19,8 +19,6 @@ import (
 
 	version "github.com/hashicorp/go-version"
 )
-
-// TODO: move to main?
 
 const minGoCryptFSVersion = "2.6.1"
 const MountWaitTime = time.Millisecond * 150

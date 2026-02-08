@@ -6,7 +6,6 @@ import (
 	"time"
 
 	c "journal-tui/components"
-	j "journal-tui/journal"
 	"journal-tui/theme"
 	"journal-tui/utils"
 
@@ -14,14 +13,14 @@ import (
 )
 
 type DayPicker struct {
-	journal       *j.Journal
+	journal       *Journal
 	preview       *Preview
 	calendar      *c.Calendar
 	confirmDelete *c.Confirm
 	gotoPrompt    *c.InputPrompt
 }
 
-func CreateDayPicker(journal *j.Journal, preview *Preview) *DayPicker {
+func CreateDayPicker(journal *Journal, preview *Preview) *DayPicker {
 	calendar := c.NewCalendar().
 		UnderlineDay(func(date time.Time) bool {
 			hasEntry, _ := journal.HasEntry(date)
@@ -55,7 +54,7 @@ func CreateDayPicker(journal *j.Journal, preview *Preview) *DayPicker {
 			if accepted {
 				date := calendar.Current()
 				journal.DeleteEntry(date)
-				log.Printf("deleted entry: %s", Journal.EntryPath(date))
+				log.Printf("deleted entry: %s", journal.EntryPath(date))
 				preview.Update(date)
 			}
 			Focus.Pop()
