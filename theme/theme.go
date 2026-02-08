@@ -34,7 +34,7 @@ var (
 		return extend(s).Foreground(t.ColorBlack).Background(t.ColorBlue)
 	}
 	CalendarToday = func(s ...t.Style) t.Style {
-		return extend(s).Bold(true).Foreground(t.ColorYellow)
+		return extend(s).Bold(true).Foreground(t.ColorGold)
 	}
 	CalendarOutside = func(s ...t.Style) t.Style {
 		return extend(s).Foreground(t.ColorDimGray)

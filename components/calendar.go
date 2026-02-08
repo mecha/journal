@@ -9,28 +9,20 @@ import (
 	t "github.com/gdamore/tcell/v2"
 )
 
+var _ Component = (*Calendar)(nil)
+
 type Calendar struct {
-	year            int
-	month           int
+	date            time.Time
 	cursor          int
 	firstIdx        int
 	lastIdx         int
-	numDays         int
-	prevNumDays     int
 	underlineDay    func(time.Time) bool
 	onDayChangeFunc func(time.Time)
 }
 
-var _ Component = (*Calendar)(nil)
-
 func NewCalendar() *Calendar {
-	today := time.Now()
-	c := &Calendar{
-		year:  today.Year(),
-		month: int(today.Month()),
-	}
-	c.analyzeMonth()
-	c.Today()
+	c := &Calendar{}
+	c.SetDate(dateOnly(time.Now()))
 	return c
 }
 
@@ -44,88 +36,29 @@ func (c *Calendar) OnDayChanged(callback func(time.Time)) *Calendar {
 	return c
 }
 
-func (c *Calendar) Current() time.Time {
-	day, month, year := 1, c.month, c.year
-
-	switch {
-	case c.cursor < c.firstIdx:
-		day = c.prevNumDays - c.firstIdx + c.cursor + 1
-		month--
-	case c.cursor > c.lastIdx:
-		day = c.cursor - c.lastIdx
-		month++
-	default:
-		day = 1 + c.cursor - c.firstIdx
-	}
-
-	month, year = normalizeMonthsAndYears(month, year)
-	return time.Date(year, time.Month(month), day, 0, 0, 0, 0, time.Local)
+func (c *Calendar) Date() time.Time {
+	return c.date
 }
 
-func (c *Calendar) SetDay(day, month, year int) {
-	c.month, c.year = month, year
-	c.analyzeMonth()
+func (c *Calendar) SetDate(date time.Time) {
+	c.date = date
+
+	year, month, day := c.date.Date()
+	monthStart := makeDate(year, month, 1)
+	numDays := monthStart.AddDate(0, 1, -1).Day()
+
+	c.firstIdx = (int(monthStart.Weekday()) + 6) % 7
+	c.lastIdx = c.firstIdx + numDays
 	c.cursor = c.firstIdx + day - 1
-	c.notifyDayChange()
-}
 
-func (c *Calendar) Today() {
-	now := time.Now()
-	c.SetDay(now.Day(), int(now.Month()), now.Year())
-}
-
-func (c *Calendar) PrevMonth() {
-	c.month, c.year = normalizeMonthsAndYears(c.month-1, c.year)
-	current := c.Current()
-	c.analyzeMonth()
-	c.cursor = c.firstIdx + current.Day() - 1
-	c.notifyDayChange()
-}
-
-func (c *Calendar) NextMonth() {
-	c.month, c.year = normalizeMonthsAndYears(c.month+1, c.year)
-	current := c.Current()
-	c.analyzeMonth()
-	c.cursor = c.firstIdx + current.Day() - 1
-	c.notifyDayChange()
-}
-
-func (c *Calendar) DayLeft() {
-	c.cursor--
-	if c.cursor < 0 {
-		c.PrevMonth()
-	}
-	c.notifyDayChange()
-}
-
-func (c *Calendar) DayRight() {
-	c.cursor++
-	if c.cursor > 41 {
-		c.NextMonth()
-	}
-	c.notifyDayChange()
-}
-
-func (c *Calendar) DayUp() {
-	c.cursor -= 7
-	if c.cursor < 0 {
-		c.PrevMonth()
-	}
-	c.notifyDayChange()
-}
-
-func (c *Calendar) DayDown() {
-	c.cursor += 7
-	if c.cursor > 41 {
-		c.NextMonth()
-	}
-	c.notifyDayChange()
-}
-
-func (c *Calendar) notifyDayChange() {
 	if c.onDayChangeFunc != nil {
-		c.onDayChangeFunc(c.Current())
+		c.onDayChangeFunc(c.date)
 	}
+}
+
+func (c *Calendar) SetToday() {
+	year, month, day := time.Now().Date()
+	c.SetDate(time.Date(year, month, day, 12, 0, 0, 0, time.Local))
 }
 
 func (c *Calendar) HandleEvent(ev t.Event) (consume bool) {
@@ -135,48 +68,37 @@ func (c *Calendar) HandleEvent(ev t.Event) (consume bool) {
 		default:
 			return false
 		case t.KeyUp:
-			c.DayUp()
+			c.SetDate(c.date.AddDate(0, 0, -7))
 		case t.KeyDown:
-			c.DayDown()
+			c.SetDate(c.date.AddDate(0, 0, 7))
 		case t.KeyLeft:
-			c.DayLeft()
+			c.SetDate(c.date.AddDate(0, 0, -1))
 		case t.KeyRight:
-			c.DayRight()
+			c.SetDate(c.date.AddDate(0, 0, 1))
 
 		case t.KeyRune:
 			switch ev.Rune() {
 			default:
 				return false
 			case 't':
-				c.Today()
+				c.SetToday()
 			case 'n':
-				c.NextMonth()
+				c.SetDate(c.date.AddDate(0, 1, 0))
 			case 'p':
-				c.PrevMonth()
+				c.SetDate(c.date.AddDate(0, -1, 0))
 			case 'j':
-				c.DayDown()
+				c.SetDate(c.date.AddDate(0, 0, 7))
 			case 'k':
-				c.DayUp()
+				c.SetDate(c.date.AddDate(0, 0, -7))
 			case 'h':
-				c.DayLeft()
+				c.SetDate(c.date.AddDate(0, 0, -1))
 			case 'l':
-				c.DayRight()
+				c.SetDate(c.date.AddDate(0, 0, 1))
 			}
 		}
 	}
 
 	return true
-}
-
-func (c *Calendar) analyzeMonth() {
-	startDate := time.Date(c.year, time.Month(c.month), 1, 0, 0, 0, 0, time.Local)
-	endDate := startDate.AddDate(0, 1, 0).AddDate(0, 0, -1)
-
-	c.numDays = endDate.Day()
-	c.firstIdx = (int(startDate.Weekday()) + 6) % 7
-	c.lastIdx = c.firstIdx + c.numDays - 1
-
-	c.prevNumDays = startDate.AddDate(0, 0, -1).Day()
 }
 
 var calenderHeaders = []string{
@@ -210,58 +132,40 @@ func (c *Calendar) Render(renderer Renderer, hasFocus bool) {
 	}
 
 	today := time.Now()
+	start := c.date.AddDate(0, 0, -c.cursor)
 
-	for row := range numRows - 1 {
-		for col := range 7 {
-			idx := col + (row * 7)
-			day, month, year := 0, c.month, c.year
+	for idx := range 42 {
+		row, col := idx/7, idx%7
+		date := start.AddDate(0, 0, idx)
 
-			switch {
-			case idx < c.firstIdx:
-				day = c.prevNumDays - c.firstIdx + 1 + idx
-				month--
-			case idx > c.lastIdx:
-				day = idx - c.lastIdx
-				month++
-			default:
-				day = idx - c.firstIdx + 1
-			}
-
-			month, year = normalizeMonthsAndYears(month, year)
-			dayStyle := theme.CalendarDay()
-
-			if idx < c.firstIdx || idx > c.lastIdx {
-				dayStyle = theme.CalendarOutside(dayStyle)
-			}
-			if idx == c.cursor {
-				dayStyle = theme.CalendarSelect(dayStyle)
-			}
-			if day == today.Day() && month == int(today.Month()) && year == today.Year() {
-				dayStyle = theme.CalendarToday(dayStyle)
-			}
-
-			x := 1 + (col * (colWidth + 1))
-			y := headerHeight + (row * (rowHeight + 1))
-
-			renderer.PutStrStyled(x, y, "    ", dayStyle)
-
-			date := time.Date(year, time.Month(month), day, 0, 0, 0, 0, time.Local)
-			if c.underlineDay != nil && c.underlineDay(date) {
-				dayStyle = dayStyle.Underline(true)
-			}
-			renderer.PutStrStyled(x+1, y, fmt.Sprintf("%02d", day), dayStyle)
+		dayStyle := theme.CalendarDay()
+		if idx < c.firstIdx || idx > c.lastIdx {
+			dayStyle = theme.CalendarOutside(dayStyle)
 		}
+		if idx == c.cursor {
+			dayStyle = theme.CalendarSelect(dayStyle)
+		}
+		year, month, day := date.Date()
+		if day == today.Day() && month == today.Month() && year == today.Year() {
+			dayStyle = theme.CalendarToday(dayStyle)
+		}
+
+		x := 1 + (col * (colWidth + 1))
+		y := headerHeight + (row * (rowHeight + 1))
+
+		renderer.PutStrStyled(x, y, "    ", dayStyle)
+
+		if c.underlineDay != nil && c.underlineDay(date) {
+			dayStyle = dayStyle.Underline(true)
+		}
+		renderer.PutStrStyled(x+1, y, fmt.Sprintf("%02d", day), dayStyle)
 	}
 }
 
-func normalizeMonthsAndYears(month, year int) (int, int) {
-	switch {
-	case month < 1:
-		month = 12
-		year--
-	case month > 12:
-		month = 1
-		year++
-	}
-	return month, year
+func makeDate(year int, month time.Month, day int) time.Time {
+	return time.Date(year, month, day, 12, 0, 0, 0, time.Local)
+}
+
+func dateOnly(t time.Time) time.Time {
+	return makeDate(t.Date())
 }

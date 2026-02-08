@@ -1,13 +1,15 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"log"
+	"strconv"
+	"strings"
 	"time"
 
 	c "journal-tui/components"
 	"journal-tui/theme"
-	"journal-tui/utils"
 
 	t "github.com/gdamore/tcell/v2"
 )
@@ -38,9 +40,9 @@ func CreateDayPicker(journal *Journal, preview *Preview) *DayPicker {
 			func(input *c.Input, cancelled bool) {
 				if !cancelled {
 					value := input.Value()
-					day, month, year, err := utils.ParseDayMonthYear(value)
+					date, err := ParseDayMonthYear(value)
 					if err == nil {
-						calendar.SetDay(day, month, year)
+						calendar.SetDate(date)
 					} else {
 						log.Println(err)
 					}
@@ -52,7 +54,7 @@ func CreateDayPicker(journal *Journal, preview *Preview) *DayPicker {
 			}),
 		confirmDelete: c.NewConfirm("Are you sure you want to delete this journal entry?", func(accepted bool) {
 			if accepted {
-				date := calendar.Current()
+				date := calendar.Date()
 				journal.DeleteEntry(date)
 				log.Printf("deleted entry: %s", journal.EntryPath(date))
 				preview.Update(date)
@@ -79,13 +81,13 @@ func (d *DayPicker) HandleEvent(ev t.Event) bool {
 	case *t.EventKey:
 		switch ev.Key() {
 		case t.KeyEnter:
-			d.journal.EditEntry(d.calendar.Current())
-			d.preview.Update(d.calendar.Current())
+			date := d.calendar.Date()
+			d.journal.EditEntry(date)
 			return true
 		case t.KeyRune:
 			switch ev.Rune() {
 			case 'd':
-				if has, _ := d.journal.HasEntry(d.calendar.Current()); has {
+				if has, _ := d.journal.HasEntry(d.calendar.Date()); has {
 					Focus.Push(d.confirmDelete)
 				}
 				return true
@@ -100,7 +102,7 @@ func (d *DayPicker) HandleEvent(ev t.Event) bool {
 }
 
 func (dp *DayPicker) Render(r c.Renderer, hasFocus bool) {
-	date := dp.calendar.Current()
+	date := dp.calendar.Date()
 	title := fmt.Sprintf("[1]─%s %d", date.Month().String(), date.Year())
 	panelRegion := c.DrawPanel(r, title, theme.Borders(hasFocus))
 
@@ -115,4 +117,22 @@ func (dp *DayPicker) Render(r c.Renderer, hasFocus bool) {
 	if Focus.Is(dp.confirmDelete) {
 		dp.confirmDelete.Render(popupRegion, true)
 	}
+}
+
+func ParseDayMonthYear(s string) (time.Time, error) {
+	parts := strings.Split(s, "/")
+	if len(parts) != 3 {
+		return time.Time{}, errors.New("invalid date: must be <day>/<month>/<year>")
+	}
+
+	nums := [3]int{0, 0, 0}
+	for i, part := range parts {
+		num, err := strconv.Atoi(part)
+		if err != nil {
+			return time.Time{}, errors.New("invalid date: \"" + part + "\" is not a number")
+		}
+		nums[i] = num
+	}
+
+	return time.Date(nums[2], time.Month(nums[1]), nums[0], 0, 0, 0, 0, time.Local), nil
 }

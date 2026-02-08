@@ -40,7 +40,7 @@ func main() {
 	dayPicker := CreateDayPicker(journal, preview)
 
 	resetPreview := func() {
-		preview.Update(dayPicker.calendar.Current())
+		preview.Update(dayPicker.calendar.Date())
 	}
 
 	tagBrowser := CreateTagBrowser(journal, preview.Update, resetPreview)
