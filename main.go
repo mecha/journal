@@ -348,20 +348,22 @@ func (dp *DayPicker) Render(r c.Renderer, hasFocus bool) {
 }
 
 type TagBrowser struct {
-	journal     *j.Journal
-	tagList     *c.List[string]
-	fileList    *c.List[CalendarDay]
-	selectedTag string
+	journal      *j.Journal
+	tagList      *c.List[string]
+	fileList     *c.List[CalendarDay]
+	selectedTag  string
+	resetPreview func()
 }
 
 type CalendarDay struct{ day, month, year int }
 
 func CreateTagBrowser(journal *j.Journal, updatePreview DayCallback, resetPreview func()) *TagBrowser {
 	b := &TagBrowser{
-		journal:     journal,
-		tagList:     c.NewList([]string{}),
-		fileList:    c.NewList([]CalendarDay{}),
-		selectedTag: "",
+		journal:      journal,
+		tagList:      c.NewList([]string{}),
+		fileList:     c.NewList([]CalendarDay{}),
+		selectedTag:  "",
+		resetPreview: resetPreview,
 	}
 
 	b.tagList.
@@ -388,13 +390,16 @@ func CreateTagBrowser(journal *j.Journal, updatePreview DayCallback, resetPrevie
 			date := time.Date(item.year, time.Month(item.month), item.day, 0, 0, 0, 0, time.Local)
 			return date.Format("02 Jan 2006")
 		}).
+		OnSelect(func(i int, item CalendarDay) {
+			updatePreview(item.day, item.month, item.year)
+		}).
 		OnEnter(func(i int, item CalendarDay) {
 			err := b.journal.EditEntry(item.day, item.month, item.year)
 			if err != nil {
 				log.Print(err)
 			}
 			b.selectedTag = ""
-			resetPreview()
+			b.resetPreview()
 		})
 
 	return b
@@ -416,6 +421,7 @@ func (b *TagBrowser) HandleEvent(ev t.Event) bool {
 		switch ev.Key() {
 		case t.KeyEscape:
 			b.selectedTag = ""
+			b.resetPreview()
 			return true
 		}
 	}

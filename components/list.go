@@ -12,7 +12,8 @@ import (
 type List[Item any] struct {
 	items      []Item
 	renderFunc ListRenderFunc[Item]
-	onEnter    ListOnEnterFunc[Item]
+	onEnter    ListItemFunc[Item]
+	onSelect   ListItemFunc[Item]
 
 	cursor   int
 	vscroll  int
@@ -21,7 +22,7 @@ type List[Item any] struct {
 }
 
 type ListRenderFunc[Item any] func(item Item) string
-type ListOnEnterFunc[Item any] func(i int, item Item)
+type ListItemFunc[Item any] func(i int, item Item)
 
 func NewList[Item any](items []Item) *List[Item] {
 	return &List[Item]{
@@ -36,8 +37,13 @@ func (l *List[Item]) RenderWith(renderFunc ListRenderFunc[Item]) *List[Item] {
 	return l
 }
 
-func (l *List[Item]) OnEnter(onEnter ListOnEnterFunc[Item]) *List[Item] {
+func (l *List[Item]) OnEnter(onEnter ListItemFunc[Item]) *List[Item] {
 	l.onEnter = onEnter
+	return l
+}
+
+func (l *List[Item]) OnSelect(onSelect ListItemFunc[Item]) *List[Item] {
+	l.onSelect = onSelect
 	return l
 }
 
@@ -64,6 +70,10 @@ func (l *List[Item]) MoveCursor(n int) {
 		l.vscroll = max(0, topTarget)
 	case bottomTarget > l.vscroll:
 		l.vscroll = min(len(l.items)-pageSize, bottomTarget)
+	}
+
+	if l.onSelect != nil && l.cursor < len(l.items) {
+		l.onSelect(l.cursor, l.items[l.cursor])
 	}
 }
 
