@@ -7,46 +7,31 @@ import (
 
 	c "journal-tui/components"
 	j "journal-tui/journal"
+	"journal-tui/theme"
 
 	t "github.com/gdamore/tcell/v2"
 )
 
 type Preview struct {
-	panel *c.Panel
-	text  *c.Text
-}
-
-type EventUpdatePreview struct {
-	day, month, year int
-}
-
-func (ev *EventUpdatePreview) When() time.Time { return time.Now() } // we care when, just return now() lmao
-
-type PreviewComp struct {
 	journal *j.Journal
-	panel   *c.Panel
 	text    *c.Text
 }
 
-func CreatePreview(journal *j.Journal) *PreviewComp {
+func CreatePreview(journal *j.Journal) *Preview {
 	text := c.NewText([]string{})
-
-	return &PreviewComp{
-		journal,
-		c.NewPanel("[3]─Preview", text),
-		text,
-	}
+	return &Preview{journal, text}
 }
 
-func (p *PreviewComp) HandleEvent(ev t.Event) bool {
-	return p.panel.HandleEvent(ev)
+func (p *Preview) HandleEvent(ev t.Event) bool {
+	return p.text.HandleEvent(ev)
 }
 
-func (p *PreviewComp) Render(r c.Renderer, hasFocus bool) {
-	p.panel.Render(r, hasFocus)
+func (p *Preview) Render(r c.Renderer, hasFocus bool) {
+	region := c.DrawPanel(r, "[3]─Preview", theme.Borders(hasFocus))
+	p.text.Render(region, hasFocus)
 }
 
-func (p *PreviewComp) Update(date time.Time) {
+func (p *Preview) Update(date time.Time) {
 	if p.journal.IsMounted() {
 		entry, has, err := p.journal.GetEntry(date)
 		switch {

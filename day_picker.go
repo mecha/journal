@@ -15,13 +15,13 @@ import (
 
 type DayPicker struct {
 	journal       *j.Journal
-	preview       *PreviewComp
+	preview       *Preview
 	calendar      *c.Calendar
 	confirmDelete *c.Confirm
 	gotoPrompt    *c.InputPrompt
 }
 
-func CreateDayPicker(journal *j.Journal, preview *PreviewComp) *DayPicker {
+func CreateDayPicker(journal *j.Journal, preview *Preview) *DayPicker {
 	calendar := c.NewCalendar().
 		UnderlineDay(func(date time.Time) bool {
 			hasEntry, _ := journal.HasEntry(date)
