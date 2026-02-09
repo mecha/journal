@@ -79,6 +79,10 @@ func (app *App) handlePasswordInput(input *c.Input, cancelled bool) {
 }
 
 func (app *App) HandleEvent(ev t.Event) bool {
+	if focus.HandleEvent(ev) {
+		return true
+	}
+
 	switch ev := ev.(type) {
 	case *JournalUnmountEvent:
 		app.promptForPassword()
@@ -98,13 +102,22 @@ func (app *App) HandleEvent(ev t.Event) bool {
 				if focus.Is(app.logViewer) {
 					app.logViewer.SetLines([]string{})
 				}
+			case 't':
+				app.dayPicker.calendar.SetToday()
+				return true
 			}
+		case t.KeyCtrlU, t.KeyPgUp:
+			app.preview.text.ScrollUp(10)
+			return true
+		case t.KeyCtrlD, t.KeyPgDn:
+			app.preview.text.ScrollDown(10)
+			return true
 		case t.KeyCtrlC:
 			quit(nil)
 		}
 	}
 
-	return focus.HandleEvent(ev)
+	return false
 }
 
 var calSize = c.Size{W: 45, H: 15}
