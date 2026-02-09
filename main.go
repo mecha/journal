@@ -6,7 +6,6 @@ import (
 	"time"
 
 	c "journal-tui/components"
-	"journal-tui/theme"
 
 	t "github.com/gdamore/tcell/v2"
 )
@@ -14,178 +13,75 @@ import (
 const Version = "0.1.0"
 
 var (
-	Screen  t.Screen
+	screen  t.Screen
 	journal *Journal
-	Focus   *c.FocusManager
-	Layout  *c.Layout
+	focus   *c.FocusManager
+	app     *App
 )
 
 func main() {
 	parseFlags()
 
 	var err error
-	Screen, err = t.NewScreen()
+	screen, err = t.NewScreen()
 	if err != nil {
 		log.Fatal(err)
 	}
-	if err = Screen.Init(); err != nil {
+	if err = screen.Init(); err != nil {
 		log.Fatal(err)
 	}
 
 	journal = NewJournal(Flags.path, Flags.mntPath, Flags.idleTimeout)
 
-	titlePanel := c.NewPanel("", c.NewText([]string{"Journal v" + Version}))
-
-	preview := CreatePreview(journal)
-	dayPicker := CreateDayPicker(journal, preview)
-
-	resetPreview := func() {
-		preview.Update(dayPicker.calendar.Date())
-	}
-
-	tagBrowser := CreateTagBrowser(journal, preview.Update, resetPreview)
-	logsPanel := CreateLogs()
-
-	passwordInput := c.NewFocusToggle(
-		c.NewInputPrompt("Password",
-			c.NewInput().SetMask('*'),
-			func(input *c.Input, cancelled bool) {
-				if cancelled {
-					return
-				}
-
-				password := input.Value()
-				input.SetValue("")
-
-				if !journal.IsMounted() {
-					err := journal.Mount(password)
-					if err != nil {
-						log.Println("failed to unlock journal; ", err)
-						return
-					}
-
-					log.Println("Unlocked journal")
-					Focus.Pop()
-					Screen.HideCursor()
-
-					tagBrowser.UpdateTags()
-					resetPreview()
-					RenderScreen()
-				}
-			},
-		),
-	)
-
-	helpbar := c.NewText([]string{}).SetStyle(theme.Help())
-	helpMap := map[c.Component]string{
-		dayPicker:     "Select day: ⬍/⬌ | Edit: <ENTER> | Delete: d | Today: t | Go to specific day: g | Next/Previous month: n/p | Exit: q",
-		tagBrowser:    "Select: ⬍ | View entries: <ENTER>",
-		logsPanel:     "Select: ⬍ | Clear: c",
-		preview:       "Scroll: ⬍",
-		passwordInput: "Submit: <enter>",
-	}
-
-	Layout = c.NewLayout(
-		func(r c.Renderer, hasFocus bool) []c.LayoutTile {
-			w, h := r.Size()
-			region := c.NewRect(0, 0, w, h)
-
-			const titleHeight = 3
-			const calWidth = 45
-			const calHeight = 15
-			const helpHeight = 1
-
-			logsH := 6
-			if Focus.Current() == logsPanel {
-				logsH = min(14, h)
-			}
-
-			tagsH := h - titleHeight - calHeight - logsH - helpHeight
-			previewH := h - logsH - helpHeight
-			inputRect := c.CenterRect(region, min(w, 40), 3)
-
-			return []c.LayoutTile{
-				c.NewLayoutTile(c.NewRect(0, 0, calWidth, titleHeight), titlePanel),
-				c.NewLayoutTile(c.NewRect(0+calWidth, 0, w-calWidth, previewH), preview),
-				c.NewLayoutTile(c.NewRect(0, h-logsH-1, w, logsH), logsPanel),
-				c.NewLayoutTile(c.NewRect(0, 3, calWidth, calHeight), dayPicker),
-				c.NewLayoutTile(c.NewRect(0, 18, calWidth, tagsH), tagBrowser),
-				c.NewLayoutTile(c.NewRect(0, h-helpHeight, w, helpHeight), helpbar),
-				c.NewLayoutTile(inputRect, passwordInput),
-			}
-		},
-	).WithFocus(func() c.Component { return Focus.Current() })
-
-	Focus = c.NewFocusManager(
-		Layout,
-		[]c.Component{
-			dayPicker,
-			tagBrowser,
-			preview,
-			logsPanel,
-		}).
-		OnFocusChanged(func(current c.Component) {
-			helpbar.SetLines([]string{helpMap[current]})
-		})
-
-	Focus.SwitchTo(dayPicker)
-	Focus.Push(passwordInput)
+	app = CreateApp(journal)
 
 	journal.OnUnmount(func() {
-		Focus.Push(passwordInput)
-		tagBrowser.UpdateTags()
-		resetPreview()
-		RenderScreen()
+		app.promptForPassword()
+		screen.PostEvent(&t.EventTime{})
 	})
+
+	log.SetOutput(app.logWriter())
+
+	focus = c.NewFocusManager(
+		[]c.Component{
+			app.dayPicker,
+			app.tagBrowser,
+			app.preview,
+			app.logViewer,
+		})
+
+	focus.SwitchTo(app.dayPicker)
+	focus.Push(app.passwordPrompt)
 
 	defer func() {
 		recover()
 		log.SetOutput(os.Stdout)
+		journal.OnUnmount(nil)
 		journal.Unmount()
 	}()
 
 	go func() {
 		for range time.NewTicker(3 * time.Second).C {
-			tagBrowser.UpdateTags()
+			app.tagBrowser.UpdateTags()
 		}
 	}()
 
 	for {
-		ev := Screen.PollEvent()
-		HandleEvent(ev)
-		RenderScreen()
+		ev := screen.PollEvent()
+		app.HandleEvent(ev)
+		renderScreen()
 	}
 }
 
-func RenderScreen() {
-	Screen.Clear()
-	Layout.Render(Screen, true)
-	Screen.Show()
+func renderScreen() {
+	screen.Clear()
+	app.Render(c.NewScreenRenderer(screen), true)
+	screen.Show()
 }
 
-func HandleEvent(ev t.Event) {
-	switch ev := ev.(type) {
-	case *t.EventResize:
-		Screen.Sync()
-
-	case *t.EventKey:
-		switch key := ev.Key(); key {
-		case t.KeyRune:
-			switch ev.Rune() {
-			case 'q':
-				Quit(nil)
-			}
-		case t.KeyCtrlC:
-			Quit(nil)
-		}
-	}
-
-	Focus.HandleEvent(ev)
-}
-
-func Quit(reason error) {
+func quit(reason error) {
 	log.SetOutput(os.Stdout)
-	Screen.Fini()
+	screen.Fini()
 
 	if reason != nil {
 		log.Println(reason)

@@ -103,7 +103,7 @@ func (j *Journal) Mount(password string) error {
 		case j.errorChan <- execError:
 		default:
 		}
-		if hasReturned {
+		if hasReturned && j.onUnmountFunc != nil {
 			j.onUnmountFunc()
 		}
 	}()
@@ -113,6 +113,7 @@ func (j *Journal) Mount(password string) error {
 		hasReturned = true
 		return err
 	case <-time.NewTimer(MountWaitTime).C:
+		hasReturned = true
 		return nil
 	}
 }

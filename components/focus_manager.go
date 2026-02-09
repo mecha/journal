@@ -7,15 +7,13 @@ import (
 )
 
 type FocusManager struct {
-	content          Component
 	quicklist        []Component
 	stack            []Component
 	onFocusChangedFn func(current Component)
 }
 
-func NewFocusManager(content Component, quicklist []Component) *FocusManager {
+func NewFocusManager(quicklist []Component) *FocusManager {
 	return &FocusManager{
-		content:   content,
 		quicklist: quicklist,
 		stack:     []Component{},
 	}
@@ -37,13 +35,17 @@ func (fm *FocusManager) SwitchTo(c Component) {
 	} else {
 		fm.stack[len(fm.stack)-1] = c
 	}
-	fm.onFocusChangedFn(c)
+	if fm.onFocusChangedFn != nil {
+		fm.onFocusChangedFn(c)
+	}
 }
 
 // Pushes focus onto the stack, to return to the previous component later
 func (fm *FocusManager) Push(c Component) {
 	fm.stack = append(fm.stack, c)
-	fm.onFocusChangedFn(c)
+	if fm.onFocusChangedFn != nil {
+		fm.onFocusChangedFn(c)
+	}
 }
 
 // Pops focus from the stack, returning to the previous component
@@ -53,7 +55,9 @@ func (fm *FocusManager) Pop() Component {
 	}
 	last := fm.stack[len(fm.stack)-1]
 	fm.stack = fm.stack[:len(fm.stack)-1]
-	fm.onFocusChangedFn(fm.Current())
+	if fm.onFocusChangedFn != nil {
+		fm.onFocusChangedFn(fm.Current())
+	}
 	return last
 }
 
@@ -102,6 +106,4 @@ func (fm *FocusManager) HandleEvent(ev t.Event) bool {
 	return false
 }
 
-func (fm *FocusManager) Render(r Renderer, hasFocus bool) {
-	fm.content.Render(r, hasFocus)
-}
+func (fm *FocusManager) Render(r Renderer, hasFocus bool) {}

@@ -48,9 +48,9 @@ func CreateDayPicker(journal *Journal, preview *Preview) *DayPicker {
 					}
 				}
 				input.SetValue("")
-				Screen.HideCursor()
-				Focus.Pop()
-				RenderScreen()
+				focus.Pop()
+				screen.HideCursor()
+				screen.PostEvent(&t.EventTime{})
 			}),
 		confirmDelete: c.NewConfirm("Are you sure you want to delete this journal entry?", func(accepted bool) {
 			if accepted {
@@ -59,7 +59,7 @@ func CreateDayPicker(journal *Journal, preview *Preview) *DayPicker {
 				log.Printf("deleted entry: %s", journal.EntryPath(date))
 				preview.Update(date)
 			}
-			Focus.Pop()
+			focus.Pop()
 		}),
 	}
 }
@@ -69,11 +69,11 @@ func (d *DayPicker) HandleEvent(ev t.Event) bool {
 		return false
 	}
 
-	if Focus.Is(d.confirmDelete) && d.confirmDelete.HandleEvent(ev) {
+	if focus.Is(d.confirmDelete) && d.confirmDelete.HandleEvent(ev) {
 		return true
 	}
 
-	if Focus.Is(d.gotoPrompt) && d.gotoPrompt.HandleEvent(ev) {
+	if focus.Is(d.gotoPrompt) && d.gotoPrompt.HandleEvent(ev) {
 		return true
 	}
 
@@ -88,11 +88,11 @@ func (d *DayPicker) HandleEvent(ev t.Event) bool {
 			switch ev.Rune() {
 			case 'd':
 				if has, _ := d.journal.HasEntry(d.calendar.Date()); has {
-					Focus.Push(d.confirmDelete)
+					focus.Push(d.confirmDelete)
 				}
 				return true
 			case 'g':
-				Focus.Push(d.gotoPrompt)
+				focus.Push(d.gotoPrompt)
 				return true
 			}
 		}
@@ -108,13 +108,13 @@ func (dp *DayPicker) Render(r c.Renderer, hasFocus bool) {
 
 	dp.calendar.Render(panelRegion, hasFocus)
 
-	popupRegion := c.CenteredRegion(Screen, 40, 3)
+	popupRegion := c.CenteredRegion(c.NewScreenRenderer(screen), 40, 3)
 
-	if Focus.Is(dp.gotoPrompt) {
+	if focus.Is(dp.gotoPrompt) {
 		dp.gotoPrompt.Render(popupRegion, true)
 	}
 
-	if Focus.Is(dp.confirmDelete) {
+	if focus.Is(dp.confirmDelete) {
 		dp.confirmDelete.Render(popupRegion, true)
 	}
 }

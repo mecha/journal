@@ -34,10 +34,11 @@ func (p *Panel) Render(r Renderer, hasFocus bool) {
 		r.PutStrStyled(2, 0, p.title, style)
 	}
 
-	p.content.Render(RegionFrom(r, Rect{Pos{1, 1}, Size{w - 2, h - 2}}), hasFocus)
+	region := r.SubRegion(Rect{Pos{1, 1}, Size{w - 2, h - 2}})
+	p.content.Render(region, hasFocus)
 }
 
-func DrawPanel(r Renderer, title string, style t.Style) *Region {
+func DrawPanel(r Renderer, title string, style t.Style) Renderer {
 	w, h := r.Size()
 
 	DrawBox(r, 0, 0, w, h, BordersRound, style)
@@ -46,5 +47,5 @@ func DrawPanel(r Renderer, title string, style t.Style) *Region {
 		r.PutStrStyled(2, 0, title, style)
 	}
 
-	return RegionFrom(r, Rect{Pos{1, 1}, Size{w - 2, h - 2}})
+	return r.SubRegion(Rect{Pos{1, 1}, Size{w - 2, h - 2}})
 }
