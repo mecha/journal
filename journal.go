@@ -62,6 +62,8 @@ func (j *Journal) OnUnmount(callback func()) {
 }
 
 func (j *Journal) Mount(password string) error {
+	os.MkdirAll(j.mountPath, 0755)
+
 	command := exec.Command(
 		"gocryptfs",
 		"-fg",
