@@ -114,60 +114,56 @@ func (j *Journal) Mount(password string) error {
 	j.isMounted = true
 	j.command = command
 
-	var execError error = nil
-	var hasReturned = false
 	go func() {
-		execError = j.command.Wait()
-		if execError != nil && hasReturned {
-			log.Printf("journal locked; %s", execError.Error())
+		j.errorChan <- j.command.Wait()
+	}()
+
+	select {
+	case err := <-j.errorChan:
+		j.isMounted = false
+		j.watcher.Close()
+		return err
+	case <-time.NewTimer(MountWaitTime).C:
+		err := j.watcher.AddRecursive(j.mountPath)
+		if err != nil {
+			log.Println(err)
+		}
+		go j.handleWatcherEvents()
+	}
+
+	go func() {
+		err := <-j.errorChan
+		if err != nil {
+			log.Printf("journal locked; %s", err.Error())
 		}
 		j.isMounted = false
 		j.watcher.Close()
-		select {
-		case j.errorChan <- execError:
-		default:
-		}
-		if hasReturned && j.onUnmountFunc != nil {
+		if j.onUnmountFunc != nil {
 			j.onUnmountFunc()
 		}
-	}()
-
-	err = nil
-	select {
-	case err = <-j.errorChan:
-	case <-time.NewTimer(MountWaitTime).C:
-	}
-
-	hasReturned = true
-	if err != nil {
-		return err
-	}
-
-	err = j.watcher.AddRecursive(j.mountPath)
-	if err != nil {
-		log.Println(err)
-	}
-
-	go func() {
-		for {
-			select {
-			case ev, ok := <-j.watcher.Events:
-				if !ok {
-					return
-				}
-				if j.onFSEventFunc != nil {
-					j.onFSEventFunc(ev)
-				}
-			case err, ok := <-j.watcher.Errors:
-				if !ok {
-					return
-				}
-				log.Println(err)
-			}
-		}
+		j.errorChan <- err
 	}()
 
 	return nil
+}
+
+func (j *Journal) handleWatcherEvents() {
+	for {
+		select {
+		case ev, ok := <-j.watcher.Events:
+			if !ok {
+				return
+			}
+			if j.onFSEventFunc != nil {
+				j.onFSEventFunc(ev)
+			}
+		case err, ok := <-j.watcher.Errors:
+			if !ok {
+				return
+			}
+			log.Println(err)
+		}
+	}
 }
 
 func (j *Journal) Unmount() error {
@@ -280,7 +276,7 @@ func (j *Journal) EditEntry(date time.Time) error {
 	winTitle := date.Format("02 Jan 2006")
 	cmd := exec.Command("tmux", "neww", "-n", winTitle, "nvim", filepath)
 	cmd.Run()
-	// log.Printf("opened entry for editing: %s", filepath)
+	log.Printf("opened entry for editing: %s", filepath)
 
 	return nil
 }
