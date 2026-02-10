@@ -17,7 +17,9 @@ import (
 	"syscall"
 	"time"
 
-	version "github.com/hashicorp/go-version"
+	"github.com/farmergreg/rfsnotify"
+	"github.com/hashicorp/go-version"
+	"gopkg.in/fsnotify.v1"
 )
 
 const minGoCryptFSVersion = "2.6.1"
@@ -39,18 +41,29 @@ type Journal struct {
 	isMounted     bool
 	errorChan     chan error
 	onUnmountFunc func()
+	onFSEventFunc func(ev fsnotify.Event)
+	watcher       *rfsnotify.RWatcher
 }
 
-func NewJournal(cipherPath, mountPath string, idleTimeout string) *Journal {
-	return &Journal{
+func NewJournal(cipherPath, mountPath string, idleTimeout string) (*Journal, error) {
+	journal := &Journal{
 		cipherPath:    strings.TrimSuffix(cipherPath, "/"),
 		mountPath:     strings.TrimSuffix(mountPath, "/"),
 		idleTimeout:   idleTimeout,
 		command:       nil,
 		isMounted:     false,
 		errorChan:     make(chan error),
-		onUnmountFunc: func() {},
+		onUnmountFunc: nil,
+		onFSEventFunc: nil,
 	}
+
+	watcher, err := rfsnotify.NewWatcher()
+	if err != nil {
+		return journal, err
+	}
+	journal.watcher = watcher
+
+	return journal, nil
 }
 
 func (j *Journal) IsMounted() bool {
@@ -61,7 +74,15 @@ func (j *Journal) OnUnmount(callback func()) {
 	j.onUnmountFunc = callback
 }
 
+func (j *Journal) OnFSEvent(callback func(ev fsnotify.Event)) {
+	j.onFSEventFunc = callback
+}
+
 func (j *Journal) Mount(password string) error {
+	if j.isMounted {
+		return errors.New("journal is already mounted")
+	}
+
 	os.MkdirAll(j.mountPath, 0755)
 
 	command := exec.Command(
@@ -101,6 +122,7 @@ func (j *Journal) Mount(password string) error {
 			log.Printf("journal locked; %s", execError.Error())
 		}
 		j.isMounted = false
+		j.watcher.Close()
 		select {
 		case j.errorChan <- execError:
 		default:
@@ -110,14 +132,42 @@ func (j *Journal) Mount(password string) error {
 		}
 	}()
 
+	err = nil
 	select {
-	case err := <-j.errorChan:
-		hasReturned = true
-		return err
+	case err = <-j.errorChan:
 	case <-time.NewTimer(MountWaitTime).C:
-		hasReturned = true
-		return nil
 	}
+
+	hasReturned = true
+	if err != nil {
+		return err
+	}
+
+	err = j.watcher.AddRecursive(j.mountPath)
+	if err != nil {
+		log.Println(err)
+	}
+
+	go func() {
+		for {
+			select {
+			case ev, ok := <-j.watcher.Events:
+				if !ok {
+					return
+				}
+				if j.onFSEventFunc != nil {
+					j.onFSEventFunc(ev)
+				}
+			case err, ok := <-j.watcher.Errors:
+				if !ok {
+					return
+				}
+				log.Println(err)
+			}
+		}
+	}()
+
+	return nil
 }
 
 func (j *Journal) Unmount() error {
@@ -125,7 +175,8 @@ func (j *Journal) Unmount() error {
 		return nil
 	}
 
-	_ = j.command.Process.Signal(syscall.SIGTERM)
+	j.command.Process.Signal(syscall.SIGTERM)
+	j.watcher.Close()
 
 	select {
 	case err := <-j.errorChan:
@@ -191,6 +242,11 @@ func (j *Journal) CreateEntry(date time.Time) (string, error) {
 		return "", err
 	}
 
+	err = j.watcher.Add(dirpath)
+	if err != nil {
+		log.Println(err)
+	}
+
 	file, err := os.Create(filepath)
 	if err != nil {
 		return "", err
@@ -224,7 +280,7 @@ func (j *Journal) EditEntry(date time.Time) error {
 	winTitle := date.Format("02 Jan 2006")
 	cmd := exec.Command("tmux", "neww", "-n", winTitle, "nvim", filepath)
 	cmd.Run()
-	log.Printf("opened entry for editing: %s", filepath)
+	// log.Printf("opened entry for editing: %s", filepath)
 
 	return nil
 }
@@ -297,6 +353,12 @@ func (j *Journal) SearchTag(tag string) ([]string, error) {
 	slices.Sort(files)
 
 	return files, nil
+}
+
+func (j *Journal) handleFSEvent(ev fsnotify.Event) {
+	if j.onFSEventFunc != nil {
+		j.onFSEventFunc(ev)
+	}
 }
 
 func checkMinGoCryptFSVersion() error {

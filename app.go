@@ -21,16 +21,12 @@ type App struct {
 }
 
 func CreateApp(journal *Journal) *App {
-	app := &App{
-		journal: journal,
-	}
-
+	app := &App{journal: journal}
 	app.preview = CreatePreview(journal)
 	app.dayPicker = CreateDayPicker(journal, app.preview)
 	app.tagBrowser = CreateTagBrowser(journal, app.preview.Update, app.resetPreview)
 	app.passwordPrompt = c.NewInputPrompt("Password", c.NewInput().SetMask('*'), app.handlePasswordInput)
 	app.logViewer = c.NewText([]string{})
-
 	return app
 }
 
@@ -62,8 +58,8 @@ func (app *App) handlePasswordInput(input *c.Input, cancelled bool) {
 	password := input.Value()
 	input.SetValue("")
 
-	if !journal.IsMounted() {
-		err := journal.Mount(password)
+	if !app.journal.IsMounted() {
+		err := app.journal.Mount(password)
 		if err != nil {
 			log.Println("failed to unlock journal; ", err)
 			return
@@ -96,8 +92,6 @@ func (app *App) HandleEvent(ev t.Event) bool {
 		switch key := ev.Key(); key {
 		case t.KeyRune:
 			switch ev.Rune() {
-			case 'q':
-				quit(nil)
 			case 'c':
 				if focus.Is(app.logViewer) {
 					app.logViewer.SetLines([]string{})
@@ -112,8 +106,6 @@ func (app *App) HandleEvent(ev t.Event) bool {
 		case t.KeyCtrlD, t.KeyPgDn:
 			app.preview.text.ScrollDown(10)
 			return true
-		case t.KeyCtrlC:
-			quit(nil)
 		}
 	}
 
@@ -131,6 +123,8 @@ func (app *App) Render(r c.Renderer, hasFocus bool) {
 	var logsHeight = logsHeightSm
 	if focus.Is(app.logViewer) {
 		logsHeight = min(14, logsHeightLg)
+	} else {
+		app.logViewer.ScrollToBottom()
 	}
 
 	_, height := r.Size()
