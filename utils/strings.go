@@ -4,42 +4,10 @@ import (
 	"errors"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/bbrks/wrap"
 )
-
-func ParseDayMonthYear(s string) (day, month, year int, err error) {
-	day, month, year, err = ParseNumTriplet(s, "/")
-	if err != nil {
-		return 0, 0, 0, errors.New("invalid date format, must be day/month/year")
-	}
-	return day, month, year, nil
-}
-
-func ParseNumTriplet(s string, sep string) (int, int, int, error) {
-	parts := strings.Split(s, sep)
-	if len(parts) != 3 {
-		return 0, 0, 0, errors.New("invalid format")
-	}
-	parts = parts[len(parts)-3:]
-
-	one, err := strconv.Atoi(parts[0])
-	if err != nil {
-		return 0, 0, 0, err
-	}
-
-	two, err := strconv.Atoi(parts[1])
-	if err != nil {
-		return 0, 0, 0, err
-	}
-
-	three, err := strconv.Atoi(parts[2])
-	if err != nil {
-		return 0, 0, 0, err
-	}
-
-	return one, two, three, nil
-}
 
 func FixedString(s string, maxLength int, pad string) string {
 	switch {
@@ -78,4 +46,22 @@ func WrapString(s string, n int) []string {
 	wrapped := wrap.Wrap(s, n)
 	lines := strings.Split(wrapped, "\n")
 	return lines
+}
+
+func ParseDayMonthYear(s string) (time.Time, error) {
+	parts := strings.Split(s, "/")
+	if len(parts) != 3 {
+		return time.Time{}, errors.New("invalid date: must be <day>/<month>/<year>")
+	}
+
+	nums := [3]int{0, 0, 0}
+	for i, part := range parts {
+		num, err := strconv.Atoi(part)
+		if err != nil {
+			return time.Time{}, errors.New("invalid date: \"" + part + "\" is not a number")
+		}
+		nums[i] = num
+	}
+
+	return time.Date(nums[2], time.Month(nums[1]), nums[0], 0, 0, 0, 0, time.Local), nil
 }

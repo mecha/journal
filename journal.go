@@ -16,10 +16,9 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/mecha/journal/utils"
-
 	"github.com/farmergreg/rfsnotify"
 	"github.com/hashicorp/go-version"
+	"github.com/mecha/journal/utils"
 	"gopkg.in/fsnotify.v1"
 )
 
@@ -290,19 +289,19 @@ func (j *Journal) EntryTitle(date time.Time) string {
 	return date.Format("Mon - 02 Jan 2006")
 }
 
-func (j *Journal) GetEntryAtPath(path string) (day, month, year int) {
+func (j *Journal) GetEntryAtPath(path string) (time.Time, error) {
 	if !strings.HasPrefix(path, j.mountPath) {
-		return 0, 0, 0
+		return time.Time{}, errors.New("not a path to a journal entry")
 	}
 
 	relpath := path[len(j.mountPath):]
 	dateStr := strings.TrimSuffix(strings.TrimPrefix(relpath, "/"), ".md")
 
-	year, month, day, err := utils.ParseDayMonthYear(dateStr)
+	date, err := utils.ParseDayMonthYear(dateStr)
 	if err != nil {
-		return 0, 0, 0
+		return date, err
 	}
-	return day, month, year
+	return date, nil
 }
 
 func (j *Journal) DeleteEntry(date time.Time) error {
@@ -332,34 +331,32 @@ func (j *Journal) Tags() ([]string, error) {
 	return slices.Collect(maps.Keys(tags)), nil
 }
 
-func (j *Journal) SearchTag(tag string) ([]string, error) {
+func (j *Journal) SearchTag(tag string) ([]time.Time, error) {
 	if !j.isMounted {
-		return []string{}, errors.New("journal is not mounted")
+		return []time.Time{}, errors.New("journal is not mounted")
 	}
 
 	cmd := exec.Command("rg", "-l", "-w", tag, j.mountPath)
 	cmd.Stderr = os.Stderr
 	output, err := cmd.Output()
 	if err != nil {
-		return []string{}, fmt.Errorf("rg error: %w", err)
+		return []time.Time{}, fmt.Errorf("rg error: %w", err)
 	}
 
-	fileMap := map[string]bool{}
+	fileMap := map[time.Time]bool{}
 	scanner := bufio.NewScanner(bytes.NewBuffer(output))
 	for scanner.Scan() {
-		fileMap[scanner.Text()] = true
+		date, err := utils.ParseDayMonthYear(scanner.Text())
+		if err != nil {
+			continue
+		}
+		fileMap[date] = true
 	}
 
-	files := slices.Collect(maps.Keys(fileMap))
-	slices.Sort(files)
+	entries := slices.Collect(maps.Keys(fileMap))
+	slices.SortFunc(entries, func(a, b time.Time) int { return a.Compare(b) })
 
-	return files, nil
-}
-
-func (j *Journal) handleFSEvent(ev fsnotify.Event) {
-	if j.onFSEventFunc != nil {
-		j.onFSEventFunc(ev)
-	}
+	return entries, nil
 }
 
 func checkMinGoCryptFSVersion() error {

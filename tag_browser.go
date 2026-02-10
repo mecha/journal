@@ -30,20 +30,12 @@ func CreateTagBrowser(journal *Journal, updatePreview func(time.Time), resetPrev
 
 	b.tagList.
 		OnEnter(func(i int, tag string) {
-			files, err := b.journal.SearchTag(tag)
+			entries, err := b.journal.SearchTag(tag)
 			if err != nil {
 				log.Print(err)
 			}
 
-			items := []time.Time{}
-			for _, file := range files {
-				day, month, year := b.journal.GetEntryAtPath(file)
-				if year > 0 {
-					items = append(items, time.Date(year, time.Month(month), day, 0, 0, 0, 0, time.Local))
-				}
-			}
-
-			b.fileList.SetItems(items)
+			b.fileList.SetItems(entries)
 			b.selectedTag = tag
 		})
 

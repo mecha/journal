@@ -1,15 +1,13 @@
 package main
 
 import (
-	"errors"
 	"fmt"
 	"log"
-	"strconv"
-	"strings"
 	"time"
 
 	c "github.com/mecha/journal/components"
 	"github.com/mecha/journal/theme"
+	"github.com/mecha/journal/utils"
 
 	t "github.com/gdamore/tcell/v2"
 )
@@ -40,7 +38,7 @@ func CreateDayPicker(journal *Journal, preview *Preview) *DayPicker {
 			func(input *c.Input, cancelled bool) {
 				if !cancelled {
 					value := input.Value()
-					date, err := ParseDayMonthYear(value)
+					date, err := utils.ParseDayMonthYear(value)
 					if err == nil {
 						calendar.SetDate(date)
 					} else {
@@ -119,20 +117,3 @@ func (dp *DayPicker) Render(r c.Renderer, hasFocus bool) {
 	}
 }
 
-func ParseDayMonthYear(s string) (time.Time, error) {
-	parts := strings.Split(s, "/")
-	if len(parts) != 3 {
-		return time.Time{}, errors.New("invalid date: must be <day>/<month>/<year>")
-	}
-
-	nums := [3]int{0, 0, 0}
-	for i, part := range parts {
-		num, err := strconv.Atoi(part)
-		if err != nil {
-			return time.Time{}, errors.New("invalid date: \"" + part + "\" is not a number")
-		}
-		nums[i] = num
-	}
-
-	return time.Date(nums[2], time.Month(nums[1]), nums[0], 0, 0, 0, 0, time.Local), nil
-}
