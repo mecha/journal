@@ -1,8 +1,9 @@
 package components
 
 import (
-	"journal-tui/utils"
 	"strings"
+
+	"github.com/mecha/journal/utils"
 
 	t "github.com/gdamore/tcell/v2"
 )

@@ -2,11 +2,12 @@ package main
 
 import (
 	"io"
-	c "journal-tui/components"
-	"journal-tui/theme"
 	"log"
 	"strings"
 	"time"
+
+	c "github.com/mecha/journal/components"
+	"github.com/mecha/journal/theme"
 
 	t "github.com/gdamore/tcell/v2"
 )

@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"journal-tui/utils"
 	"log"
 	"maps"
 	"os"
@@ -16,6 +15,8 @@ import (
 	"strings"
 	"syscall"
 	"time"
+
+	"github.com/mecha/journal/utils"
 
 	"github.com/farmergreg/rfsnotify"
 	"github.com/hashicorp/go-version"

@@ -1,4 +1,4 @@
-module journal-tui
+module github.com/mecha/journal
 
 go 1.25.6
 

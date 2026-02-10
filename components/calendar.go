@@ -2,9 +2,10 @@ package components
 
 import (
 	"fmt"
-	"journal-tui/theme"
 	"strings"
 	"time"
+
+	"github.com/mecha/journal/theme"
 
 	t "github.com/gdamore/tcell/v2"
 )

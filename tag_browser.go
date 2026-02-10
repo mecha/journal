@@ -5,8 +5,8 @@ import (
 	"slices"
 	"time"
 
-	c "journal-tui/components"
-	"journal-tui/theme"
+	c "github.com/mecha/journal/components"
+	"github.com/mecha/journal/theme"
 
 	t "github.com/gdamore/tcell/v2"
 )

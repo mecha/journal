@@ -4,7 +4,7 @@ import (
 	"log"
 	"os"
 
-	c "journal-tui/components"
+	c "github.com/mecha/journal/components"
 
 	t "github.com/gdamore/tcell/v2"
 	"gopkg.in/fsnotify.v1"
