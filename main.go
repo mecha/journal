@@ -39,12 +39,12 @@ func main() {
 	journal.OnFSEvent(func(ev fsnotify.Event) {
 		app.preview.Update(app.dayPicker.calendar.Date())
 		app.tagBrowser.UpdateTags()
-		screen.PostEvent(&t.EventTime{})
+		screen.PostEvent(NewRerenderEvent())
 	})
 
 	journal.OnUnmount(func() {
 		app.promptForPassword()
-		screen.PostEvent(&t.EventTime{})
+		screen.PostEvent(NewRerenderEvent())
 	})
 
 	log.SetOutput(app.logWriter())
@@ -85,4 +85,11 @@ func main() {
 		app.Render(renderer, true)
 		screen.Show()
 	}
+}
+
+// Creates a simple time event, used to trigger a re-render.
+func NewRerenderEvent() t.Event {
+	ev := &t.EventTime{}
+	ev.SetEventNow()
+	return ev
 }

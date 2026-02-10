@@ -50,7 +50,7 @@ func CreateDayPicker(journal *Journal, preview *Preview) *DayPicker {
 				input.SetValue("")
 				focus.Pop()
 				screen.HideCursor()
-				screen.PostEvent(&t.EventTime{})
+				screen.PostEvent(NewRerenderEvent())
 			}),
 		confirmDelete: c.NewConfirm("Are you sure you want to delete this journal entry?", func(accepted bool) {
 			if accepted {
