@@ -20,7 +20,13 @@ forgetting to unmount the journal when I'm done, as I often do!
 
 ## How to use
 
-Run the app with 1 argument: the path to the encrypted directory.
+Install with Go:
+
+```
+go install https://github.com/mecha/journal@latest
+```
+
+Run with the path to the encrypted directory as argument:
 
 ```
 journal /path/to/encrypted/dir
