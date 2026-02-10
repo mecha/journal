@@ -126,25 +126,25 @@ func (app *App) Render(r c.Renderer, hasFocus bool) {
 		app.logViewer.ScrollToBottom()
 	}
 
-	_, height := r.Size()
-	mainRegion, helpRegion := r.SplitVertical(height - 1)
-	topRegion, logsRegion := mainRegion.SplitVertical(height - logsHeight)
-	leftRegion, previewRegion := topRegion.SplitHorizontal(calendarWidth)
-	calRegion, tagsRegion := leftRegion.SplitVertical(calendarHeight)
-
-	logsInner := c.DrawPanel(logsRegion, "[4]─Log", theme.Borders(focus.Is(app.logViewer)))
-	app.logViewer.Render(logsInner, focus.Is(app.logViewer))
-
-	app.dayPicker.Render(calRegion, focus.Is(app.dayPicker))
-	app.tagBrowser.Render(tagsRegion, focus.Is(app.tagBrowser))
-	app.preview.Render(previewRegion, focus.Is(app.preview))
-
 	if focus.Is(app.passwordPrompt) {
 		rect := c.CenterRect(r.GetRegion(), 40, 3)
 		app.passwordPrompt.Render(r.SubRegion(rect), true)
-	}
+	} else {
+		_, height := r.Size()
+		mainRegion, helpRegion := r.SplitVertical(height - 1)
+		topRegion, logsRegion := mainRegion.SplitVertical(height - logsHeight)
+		leftRegion, previewRegion := topRegion.SplitHorizontal(calendarWidth)
+		calRegion, tagsRegion := leftRegion.SplitVertical(calendarHeight)
 
-	helpRegion.PutStrStyled(0, 0, app.bottomBarText(), theme.Help())
+		logsInner := c.DrawPanel(logsRegion, "[4]─Log", theme.Borders(focus.Is(app.logViewer)))
+		app.logViewer.Render(logsInner, focus.Is(app.logViewer))
+
+		app.dayPicker.Render(calRegion, focus.Is(app.dayPicker))
+		app.tagBrowser.Render(tagsRegion, focus.Is(app.tagBrowser))
+		app.preview.Render(previewRegion, focus.Is(app.preview))
+
+		helpRegion.PutStrStyled(0, 0, app.bottomBarText(), theme.Help())
+	}
 }
 
 func (app *App) bottomBarText() string {
