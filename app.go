@@ -113,8 +113,6 @@ func (app *App) HandleEvent(ev t.Event) bool {
 	return false
 }
 
-var calSize = c.Size{W: 45, H: 15}
-
 const logsHeightSm = 6
 const logsHeightLg = 14
 const calendarWidth = 45
