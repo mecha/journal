@@ -41,7 +41,7 @@ figure it out from there. Or maybe you won't. But I believe in you.
 ## TODO
 
 - [x] Replace polling with file watcher
-- [ ] Use `$EDITOR` env var instead of assuming Neovim
+- [x] Use `$EDITOR` env var instead of assuming Neovim
 - [ ] Add flags to make `tmux` dependency optional
 - [ ] Add color override support through env vars
 

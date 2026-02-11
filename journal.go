@@ -274,11 +274,9 @@ func (j *Journal) EditEntry(date time.Time) error {
 	}
 
 	winTitle := date.Format("02 Jan 2006")
-	cmd := exec.Command("tmux", "neww", "-n", winTitle, "nvim", filepath)
-	cmd.Run()
-	log.Printf("opened entry for editing: %s", filepath)
+	err := openInEditor(filepath, winTitle)
 
-	return nil
+	return err
 }
 
 func (j *Journal) EntryTitle(date time.Time) string {
