@@ -17,6 +17,7 @@ forgetting to unmount the journal when I'm done, as I often do!
 - [gocryptfs]
 - [tmux]
 - [neovim]
+- [rg]
 
 ## How to use
 
