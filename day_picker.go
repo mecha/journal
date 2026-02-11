@@ -80,7 +80,10 @@ func (d *DayPicker) HandleEvent(ev t.Event) bool {
 		switch ev.Key() {
 		case t.KeyEnter:
 			date := d.calendar.Date()
-			d.journal.EditEntry(date)
+			err := d.journal.EditEntry(date)
+			if err != nil {
+				log.Print(err)
+			}
 			return true
 		case t.KeyRune:
 			switch ev.Rune() {
@@ -116,4 +119,3 @@ func (dp *DayPicker) Render(r c.Renderer, hasFocus bool) {
 		dp.confirmDelete.Render(popupRegion, true)
 	}
 }
-
