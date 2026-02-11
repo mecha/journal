@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"io"
 	"log"
 	"strings"
@@ -118,19 +119,43 @@ const logsHeightLg = 14
 const calendarWidth = 45
 const calendarHeight = 15
 
+var minSizeLocked = c.Size{W: 28, H: 3}
+var minSizeUnlocked = c.Size{W: 64, H: 26}
+
 func (app *App) Render(r c.Renderer, hasFocus bool) {
-	var logsHeight = logsHeightSm
-	if focus.Is(app.logViewer) {
-		logsHeight = min(14, logsHeightLg)
+	width, height := r.Size()
+
+	isLocked := focus.Is(app.passwordPrompt)
+
+	var minSize c.Size
+	if isLocked {
+		minSize = minSizeLocked
 	} else {
-		app.logViewer.ScrollToBottom()
+		minSize = minSizeUnlocked
 	}
 
-	if focus.Is(app.passwordPrompt) {
-		rect := c.CenterRect(r.GetRegion(), 40, 3)
+	if width < minSize.W || height < minSize.H {
+		line1 := "Terminal is too small."
+		line2 := fmt.Sprintf("Current size: %d x %d", width, height)
+		line3 := "Must be at least: 64 x 26"
+		x, y := max(0, (width-len(line3))/2), max(0, (height-3)/2)
+		r.PutStr(x, y, line1)
+		r.PutStr(x, y+1, line2)
+		r.PutStr(x, y+2, line3)
+		return
+	}
+
+	if isLocked {
+		rect := c.CenterRect(r.GetRegion(), min(width, 40), 3)
 		app.passwordPrompt.Render(r.SubRegion(rect), true)
 	} else {
-		_, height := r.Size()
+		var logsHeight = logsHeightSm
+		if focus.Is(app.logViewer) {
+			logsHeight = min(14, logsHeightLg)
+		} else {
+			app.logViewer.ScrollToBottom()
+		}
+
 		mainRegion, helpRegion := r.SplitVertical(height - 1)
 		topRegion, logsRegion := mainRegion.SplitVertical(height - logsHeight)
 		leftRegion, previewRegion := topRegion.SplitHorizontal(calendarWidth)
