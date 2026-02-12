@@ -43,7 +43,6 @@ func main() {
 	})
 
 	journal.OnUnmount(func() {
-		app.promptForPassword()
 		screen.PostEvent(NewRerenderEvent())
 	})
 
@@ -58,7 +57,6 @@ func main() {
 		})
 
 	focus.SwitchTo(app.dayPicker)
-	focus.Push(app.passwordPrompt)
 
 	defer func() {
 		err := recover()

@@ -5,7 +5,6 @@ import (
 	"io"
 	"log"
 	"strings"
-	"time"
 
 	c "github.com/mecha/journal/components"
 	"github.com/mecha/journal/theme"
@@ -14,12 +13,13 @@ import (
 )
 
 type App struct {
-	journal        *Journal
-	preview        *Preview
-	dayPicker      *DayPicker
-	tagBrowser     *TagBrowser
-	passwordPrompt *c.InputPrompt
-	logViewer      *c.Text
+	journal       *Journal
+	preview       *Preview
+	dayPicker     *DayPicker
+	tagBrowser    *TagBrowser
+	pwdInputState *c.InputState
+	logViewer     *c.Text
+	handler       c.EventHandler
 }
 
 func CreateApp(journal *Journal) *App {
@@ -27,8 +27,8 @@ func CreateApp(journal *Journal) *App {
 	app.preview = CreatePreview(journal)
 	app.dayPicker = CreateDayPicker(journal, app.preview)
 	app.tagBrowser = CreateTagBrowser(journal, app.preview.Update, app.resetPreview)
-	app.passwordPrompt = c.NewInputPrompt("Password", c.NewInput().SetMask('*'), app.handlePasswordInput)
 	app.logViewer = c.NewText([]string{})
+	app.pwdInputState = &c.InputState{}
 	return app
 }
 
@@ -46,19 +46,10 @@ func (app *App) resetPreview() {
 	app.preview.Update(app.dayPicker.calendar.Date())
 }
 
-func (app *App) promptForPassword() {
-	focus.Push(app.passwordPrompt)
-	app.tagBrowser.UpdateTags()
-	app.resetPreview()
-}
-
-func (app *App) handlePasswordInput(input *c.Input, cancelled bool) {
-	if cancelled {
-		return
-	}
-
-	password := input.Value()
-	input.SetValue("")
+func (app *App) handlePasswordInput() {
+	password := app.pwdInputState.Value
+	app.pwdInputState.Value = ""
+	app.pwdInputState.Cursor = 0
 
 	if !app.journal.IsMounted() {
 		err := app.journal.Mount(password)
@@ -68,7 +59,6 @@ func (app *App) handlePasswordInput(input *c.Input, cancelled bool) {
 		}
 
 		log.Println("Unlocked journal")
-		focus.Pop()
 		screen.HideCursor()
 
 		app.tagBrowser.UpdateTags()
@@ -77,15 +67,15 @@ func (app *App) handlePasswordInput(input *c.Input, cancelled bool) {
 }
 
 func (app *App) HandleEvent(ev t.Event) bool {
+	if app.handler != nil && app.handler(ev) {
+		return true
+	}
+
 	if focus.HandleEvent(ev) {
 		return true
 	}
 
 	switch ev := ev.(type) {
-	case *JournalUnmountEvent:
-		app.promptForPassword()
-		return true
-
 	case *t.EventResize:
 		screen.Sync()
 		return true
@@ -123,15 +113,14 @@ var minSizeLocked = c.Size{W: 28, H: 3}
 var minSizeUnlocked = c.Size{W: 64, H: 26}
 
 func (app *App) Render(r c.Renderer, hasFocus bool) {
+	app.handler = nil
 	width, height := r.Size()
 
-	isLocked := focus.Is(app.passwordPrompt)
-
 	var minSize c.Size
-	if isLocked {
-		minSize = minSizeLocked
-	} else {
+	if app.journal.IsMounted() {
 		minSize = minSizeUnlocked
+	} else {
+		minSize = minSizeLocked
 	}
 
 	if width < minSize.W || height < minSize.H {
@@ -145,9 +134,12 @@ func (app *App) Render(r c.Renderer, hasFocus bool) {
 		return
 	}
 
-	if isLocked {
+	if !app.journal.IsMounted() {
 		rect := c.CenterRect(r.GetRegion(), min(width, 40), 3)
-		app.passwordPrompt.Render(r.SubRegion(rect), true)
+		inner := c.DrawPanel(r.SubRegion(rect), "Password", theme.BordersFocus())
+		app.handler = c.DrawInput(inner, app.pwdInputState, c.InputProps{
+			OnEnter: app.handlePasswordInput,
+		})
 	} else {
 		var logsHeight = logsHeightSm
 		if focus.Is(app.logViewer) {
@@ -182,8 +174,6 @@ func (app *App) bottomBarText() string {
 		return "Select: ⬍ | Clear: c"
 	case app.preview:
 		return "Scroll: ⬍"
-	case app.passwordPrompt:
-		return "Submit: <enter>"
 	}
 	return ""
 }
@@ -194,7 +184,3 @@ func (w *AppLogWriter) Write(data []byte) (int, error) {
 	w.app.addLog(string(data))
 	return len(data), nil
 }
-
-type JournalUnmountEvent struct{ when time.Time }
-
-func (ev *JournalUnmountEvent) When() time.Time { return ev.when }

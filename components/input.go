@@ -103,3 +103,76 @@ func (c *Input) Render(r Renderer, hasFocus bool) {
 		r.ShowCursor(min(maxRunes, c.cursor), 0)
 	}
 }
+
+type InputState struct {
+	Value  string
+	Cursor int
+}
+
+type InputProps struct {
+	HideCursor   bool
+	OnEnter      func()
+	OnChange     func()
+	OnMoveCursor func()
+}
+
+func DrawInput(r Renderer, state *InputState, props InputProps) EventHandler {
+	width, _ := r.Size()
+	maxRunes := width - 1
+
+	var text string
+	if utf8.RuneCountInString(state.Value) <= maxRunes {
+		text = state.Value
+	} else {
+		text = state.Value[len(state.Value)-maxRunes:]
+	}
+
+	r.Fill(' ', theme.Input())
+	r.PutStrStyled(0, 0, text, theme.Input())
+	if !props.HideCursor {
+		r.ShowCursor(min(maxRunes, state.Cursor), 0)
+	}
+
+	return func(ev t.Event) bool {
+		if props.OnEnter == nil {
+			props.OnEnter = func() {}
+		}
+		if props.OnMoveCursor == nil {
+			props.OnMoveCursor = func() {}
+		}
+		if props.OnChange == nil {
+			props.OnChange = func() {}
+		}
+		switch ev := ev.(type) {
+		default:
+			return false
+		case *t.EventKey:
+			switch ev.Key() {
+			default:
+				return false
+			case t.KeyRune:
+				if state.Cursor == len(state.Value) {
+					state.Value += string(ev.Rune())
+				} else {
+					state.Value = state.Value[:state.Cursor] + string(ev.Rune()) + state.Value[state.Cursor:]
+				}
+				state.Cursor += 1
+
+			case t.KeyLeft:
+				state.Cursor = max(0, state.Cursor-1)
+			case t.KeyRight:
+				state.Cursor = min(len(state.Value), state.Cursor+1)
+
+			case t.KeyBackspace, t.KeyBackspace2:
+				if len(state.Value) > 0 && state.Cursor > 0 {
+					state.Value = state.Value[:state.Cursor-1] + state.Value[state.Cursor:]
+					state.Cursor -= 1
+				}
+
+			case t.KeyEnter:
+				props.OnEnter()
+			}
+		}
+		return true
+	}
+}
