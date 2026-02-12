@@ -16,10 +16,11 @@ type DayPicker struct {
 	journal       *Journal
 	preview       *Preview
 	calendar      *c.Calendar
-	confirmDelete *c.Confirm
 	gotoPrompt    *c.InputPrompt
 	date          time.Time
-	calEvHandler  c.EventHandler
+	confirmDelete bool
+	deleteChoice  bool
+	handler       c.EventHandler
 }
 
 func CreateDayPicker(journal *Journal, preview *Preview) *DayPicker {
@@ -53,25 +54,12 @@ func CreateDayPicker(journal *Journal, preview *Preview) *DayPicker {
 				screen.HideCursor()
 				screen.PostEvent(NewRerenderEvent())
 			}),
-		confirmDelete: c.NewConfirm("Are you sure you want to delete this journal entry?", func(accepted bool) {
-			if accepted {
-				date := calendar.Date()
-				journal.DeleteEntry(date)
-				log.Printf("deleted entry: %s", journal.EntryPath(date))
-				preview.Update(date)
-			}
-			focus.Pop()
-		}),
 	}
 }
 
 func (d *DayPicker) HandleEvent(ev t.Event) bool {
 	if !d.journal.IsMounted() {
 		return false
-	}
-
-	if focus.Is(d.confirmDelete) && d.confirmDelete.HandleEvent(ev) {
-		return true
 	}
 
 	if focus.Is(d.gotoPrompt) && d.gotoPrompt.HandleEvent(ev) {
@@ -82,8 +70,7 @@ func (d *DayPicker) HandleEvent(ev t.Event) bool {
 	case *t.EventKey:
 		switch ev.Key() {
 		case t.KeyEnter:
-			date := d.calendar.Date()
-			err := d.journal.EditEntry(date)
+			err := d.journal.EditEntry(d.date)
 			if err != nil {
 				log.Print(err)
 			}
@@ -91,8 +78,8 @@ func (d *DayPicker) HandleEvent(ev t.Event) bool {
 		case t.KeyRune:
 			switch ev.Rune() {
 			case 'd':
-				if has, _ := d.journal.HasEntry(d.calendar.Date()); has {
-					focus.Push(d.confirmDelete)
+				if has, _ := d.journal.HasEntry(d.date); has {
+					d.confirmDelete = true
 				}
 				return true
 			case 'g':
@@ -102,8 +89,8 @@ func (d *DayPicker) HandleEvent(ev t.Event) bool {
 		}
 	}
 
-	if d.calEvHandler != nil {
-		return d.calEvHandler(ev)
+	if d.handler != nil {
+		return d.handler(ev)
 	}
 	return false
 }
@@ -113,11 +100,12 @@ func (dp *DayPicker) Render(r c.Renderer, hasFocus bool) {
 	title := fmt.Sprintf("[1]─%s %d", date.Month().String(), date.Year())
 	panelRegion := c.DrawPanel(r, title, theme.Borders(hasFocus))
 
-	dp.calEvHandler = c.DrawCalendar(panelRegion, c.CalendarProps{
+	dp.handler = c.DrawCalendar(panelRegion, c.CalendarProps{
 		HasFocus: true,
 		Selected: dp.date,
 		OnSelectDay: func(value time.Time) {
 			dp.date = value
+			dp.preview.Update(dp.date)
 		},
 		UnderlineDays: func(t time.Time) bool {
 			has, _ := dp.journal.HasEntry(t)
@@ -131,7 +119,24 @@ func (dp *DayPicker) Render(r c.Renderer, hasFocus bool) {
 		dp.gotoPrompt.Render(popupRegion, true)
 	}
 
-	if focus.Is(dp.confirmDelete) {
-		dp.confirmDelete.Render(popupRegion, true)
+	if dp.confirmDelete {
+		dp.handler = c.DrawConfirm(popupRegion, true, c.ConfirmProps{
+			Message: "Are you sure you want to delete this journal entry?",
+			Yes:     "Yes",
+			No:      "No",
+			Border:  theme.Borders(true, theme.Dialog()),
+			Value:   dp.deleteChoice,
+			OnSelect: func(value bool) {
+				dp.deleteChoice = value
+			},
+			OnChoice: func(accepted bool) {
+				if accepted {
+					dp.journal.DeleteEntry(dp.date)
+					dp.preview.Update(date)
+					log.Printf("deleted entry: %s", dp.journal.EntryPath(date))
+				}
+				dp.confirmDelete = false
+			},
+		})
 	}
 }

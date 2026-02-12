@@ -96,3 +96,82 @@ func (c *Confirm) Render(r Renderer, hasFocus bool) {
 	DrawButton(r, noBtnX, buttonY, c.noButton, rune(c.noButton[0]), c.buttonFocused%2 == 1)
 	DrawButton(r, yesBtnX, buttonY, c.yesButton, rune(c.yesButton[0]), c.buttonFocused%2 == 0)
 }
+
+type ConfirmProps struct {
+	Yes, No  string
+	Message  string
+	Value    bool
+	Border   t.Style
+	OnSelect func(value bool)
+	OnChoice func(accepted bool)
+}
+
+func DrawConfirm(r Renderer, hasFocus bool, props ConfirmProps) EventHandler {
+	bw, bh := r.Size()
+
+	minWidth := len(props.Yes) + len(props.No) + 2
+	width := min(bw, max(40, minWidth))
+
+	lines := utils.WrapString(props.Message, width-2)
+	height := 3 + len(lines)
+
+	x, y := (bw-width)/2, (bh-height)/2
+
+	region := CenteredRegion(r, width, height)
+
+	region.Fill(' ', theme.Dialog())
+	DrawBox(r, x, y, width, height, BordersRound, props.Border)
+
+	for i, line := range lines {
+		r.PutStr(x+1, y+1+i, line)
+	}
+
+	right := x + width - 1
+	buttonY := y + height - 2
+
+	noBtnX := right - 2 - len(props.No) - 4
+	yesBtnX := noBtnX - 1 - len(props.Yes) - 4
+
+	DrawButton(r, noBtnX, buttonY, props.No, rune(props.No[0]), props.Value == false)
+	DrawButton(r, yesBtnX, buttonY, props.Yes, rune(props.Yes[0]), props.Value == true)
+
+	return func(ev t.Event) bool {
+		yes, no := strings.ToLower(props.Yes), strings.ToLower(props.No)
+
+		switch ev := ev.(type) {
+		default:
+			return false
+		case *t.EventKey:
+			switch ev.Key() {
+			default:
+				return false
+			case t.KeyRune:
+				switch ev.Rune() {
+				default:
+					return false
+				case rune(yes[0]):
+					if props.OnChoice != nil {
+						props.OnChoice(true)
+					}
+				case rune(no[0]):
+					if props.OnChoice != nil {
+						props.OnChoice(false)
+					}
+				}
+			case t.KeyEsc:
+				if props.OnChoice != nil {
+					props.OnChoice(false)
+				}
+			case t.KeyEnter:
+				if props.OnChoice != nil {
+					props.OnChoice(props.Value)
+				}
+			case t.KeyLeft, t.KeyRight, t.KeyTab:
+				if props.OnSelect != nil {
+					props.OnSelect(!props.Value)
+				}
+			}
+		}
+		return true
+	}
+}
