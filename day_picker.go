@@ -18,6 +18,8 @@ type DayPicker struct {
 	calendar      *c.Calendar
 	confirmDelete *c.Confirm
 	gotoPrompt    *c.InputPrompt
+	date          time.Time
+	calEvHandler  c.EventHandler
 }
 
 func CreateDayPicker(journal *Journal, preview *Preview) *DayPicker {
@@ -32,6 +34,7 @@ func CreateDayPicker(journal *Journal, preview *Preview) *DayPicker {
 		journal:  journal,
 		preview:  preview,
 		calendar: calendar,
+		date:     time.Now(),
 		gotoPrompt: c.NewInputPrompt(
 			"Go to (dd/mm/yyyy)",
 			c.NewInput(),
@@ -99,7 +102,10 @@ func (d *DayPicker) HandleEvent(ev t.Event) bool {
 		}
 	}
 
-	return d.calendar.HandleEvent(ev)
+	if d.calEvHandler != nil {
+		return d.calEvHandler(ev)
+	}
+	return false
 }
 
 func (dp *DayPicker) Render(r c.Renderer, hasFocus bool) {
@@ -107,7 +113,17 @@ func (dp *DayPicker) Render(r c.Renderer, hasFocus bool) {
 	title := fmt.Sprintf("[1]─%s %d", date.Month().String(), date.Year())
 	panelRegion := c.DrawPanel(r, title, theme.Borders(hasFocus))
 
-	dp.calendar.Render(panelRegion, hasFocus)
+	dp.calEvHandler = c.DrawCalendar(panelRegion, c.CalendarProps{
+		HasFocus: true,
+		Selected: dp.date,
+		OnSelectDay: func(value time.Time) {
+			dp.date = value
+		},
+		UnderlineDays: func(t time.Time) bool {
+			has, _ := dp.journal.HasEntry(t)
+			return has
+		},
+	})
 
 	popupRegion := c.CenteredRegion(c.NewScreenRenderer(screen), 40, 3)
 
