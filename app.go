@@ -15,26 +15,29 @@ import (
 
 type App struct {
 	journal       *Journal
-	preview       *Preview
 	tagBrowser    *TagBrowser
 	pwdInputState *c.InputState
 	logViewer     *c.Text
 	handler       c.EventHandler
 
 	dayPicker c.Component
+	preview   *Preview
 
 	// state
 	date           time.Time
 	dayPickerState *DayPickerState
+	previewState   *c.TextState
 }
 
 func CreateApp(journal *Journal) *App {
 	app := &App{journal: journal}
 	app.date = time.Now()
-	app.preview = CreatePreview(journal)
+	// app.preview = CreatePreview(journal)
 	app.dayPicker = CreateDayPicker(journal, app.preview)
 	app.dayPickerState = &DayPickerState{gotoInput: &c.InputState{}}
-	app.tagBrowser = CreateTagBrowser(journal, app.preview.Update, app.resetPreview)
+	app.previewState = &c.TextState{}
+	app.previewState.SetLines([]string{})
+	app.tagBrowser = CreateTagBrowser(journal, app.showEntryPreview, app.resetPreview)
 	app.logViewer = c.NewText([]string{})
 	app.pwdInputState = &c.InputState{}
 	return app
@@ -50,8 +53,24 @@ func (app *App) addLog(message string) {
 	app.logViewer.ScrollToBottom()
 }
 
+func (app *App) showEntryPreview(date time.Time) {
+	if app.journal.IsMounted() {
+		entry, has, err := app.journal.GetEntry(date)
+		switch {
+		case err != nil:
+			log.Println(err)
+		case has:
+			app.previewState.SetLines(strings.Split(entry, "\n"))
+		default:
+			app.previewState.SetLines([]string{"[No entry]"})
+		}
+	} else {
+		app.previewState.SetLines([]string{"[Journal is locked]"})
+	}
+}
+
 func (app *App) resetPreview() {
-	app.preview.Update(app.date)
+	app.showEntryPreview(app.date)
 }
 
 func (app *App) handlePasswordInput() {
@@ -101,10 +120,10 @@ func (app *App) HandleEvent(ev t.Event) bool {
 				return true
 			}
 		case t.KeyCtrlU, t.KeyPgUp:
-			app.preview.text.ScrollUp(10)
+			app.previewState.Scroll = app.previewState.Scroll.Add(0, -10)
 			return true
 		case t.KeyCtrlD, t.KeyPgDn:
-			app.preview.text.ScrollDown(10)
+			app.previewState.Scroll = app.previewState.Scroll.Add(0, 10)
 			return true
 		}
 	}
@@ -164,18 +183,28 @@ func (app *App) Render(r c.Renderer, hasFocus bool) {
 		logsInner := c.DrawPanel(logsRegion, "[4]─Log", theme.Borders(focus.Is(app.logViewer)))
 		app.logViewer.Render(logsInner, focus.Is(app.logViewer))
 
-		app.handler = DayPicker2(calRegion, app.dayPickerState, DayPickerProps{
+		dayPickerFocused := focus.Is(app.dayPicker)
+		dayPickerHandler := DayPicker2(calRegion, app.dayPickerState, DayPickerProps{
 			journal:  app.journal,
-			hasFocus: focus.Is(app.dayPicker),
+			hasFocus: dayPickerFocused,
 			date:     app.date,
 			OnChange: func(newValue time.Time) {
 				app.date = newValue
-				app.preview.Update(newValue)
+				app.showEntryPreview(newValue)
 			},
 		})
+		if dayPickerFocused {
+			app.handler = dayPickerHandler
+		}
 
 		app.tagBrowser.Render(tagsRegion, focus.Is(app.tagBrowser))
-		app.preview.Render(previewRegion, focus.Is(app.preview))
+
+		previewFocused := focus.Is(app.preview)
+		insidePreview := c.DrawPanel(previewRegion, "[3]─Preview", theme.Borders(previewFocused))
+		previewHandler := c.DrawText(insidePreview, app.previewState, c.TextProps{})
+		if previewFocused {
+			app.handler = previewHandler
+		}
 
 		helpRegion.PutStrStyled(0, 0, app.bottomBarText(), theme.Help())
 	}

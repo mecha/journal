@@ -134,3 +134,88 @@ func (w *TextWriter) Write(data []byte) (int, error) {
 func (w *TextWriter) OnWrite(callback func()) {
 	w.callback = callback
 }
+
+type TextState struct {
+	Scroll Pos
+	lines  []string
+	maxLen int
+}
+
+func (s *TextState) AddLines(lines []string) {
+	s.lines = append(s.lines, lines...)
+	s.maxLen = max(s.maxLen, utils.MaxLength(lines))
+}
+
+func (s *TextState) SetLines(lines []string) {
+	s.lines = lines
+	s.maxLen = utils.MaxLength(lines)
+}
+
+func (s *TextState) ScrollToBottom() {
+	s.Scroll = Pos{s.Scroll.X, len(s.lines)}
+}
+
+type TextProps struct {
+	Style t.Style
+}
+
+func DrawText(r Renderer, state *TextState, props TextProps) EventHandler {
+	width, height := r.Size()
+	setScroll := func(pos Pos) {
+		state.Scroll.X = max(0, min(state.maxLen-width, pos.X))
+		state.Scroll.Y = max(0, min(len(state.lines)-height, pos.Y))
+	}
+	setScroll(state.Scroll)
+
+	topLine := max(0, state.Scroll.Y)
+	lastLine := min(len(state.lines), topLine+height)
+
+	for i, line := range state.lines[topLine:lastLine] {
+		if len(line) == 0 {
+			continue
+		}
+		left := max(0, state.Scroll.X)
+		right := min(len(line), state.Scroll.X+width)
+		row := utils.FixedString(line[left:right], width, " ")
+		r.PutStrStyled(0, i, row, props.Style)
+	}
+
+	return func(ev t.Event) bool {
+		switch ev := ev.(type) {
+		default:
+			return false
+		case *t.EventKey:
+			switch ev.Key() {
+			default:
+				return false
+			case t.KeyRune:
+				switch ev.Rune() {
+				default:
+					return false
+				case 'h':
+					setScroll(state.Scroll.Add(-1, 0))
+				case 'j':
+					setScroll(state.Scroll.Add(0, 1))
+				case 'k':
+					setScroll(state.Scroll.Add(0, -1))
+				case 'l':
+					setScroll(state.Scroll.Add(1, 0))
+				case ',':
+					setScroll(state.Scroll.Add(0, -10))
+				case '.':
+					setScroll(state.Scroll.Add(0, 10))
+				}
+			case t.KeyLeft:
+				setScroll(state.Scroll.Add(-1, 0))
+			case t.KeyDown:
+				setScroll(state.Scroll.Add(0, 1))
+			case t.KeyUp:
+				setScroll(state.Scroll.Add(0, -1))
+			case t.KeyRight:
+				setScroll(state.Scroll.Add(1, 0))
+			}
+		}
+
+		return true
+	}
+}
