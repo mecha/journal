@@ -5,6 +5,7 @@ import (
 	"io"
 	"log"
 	"strings"
+	"time"
 
 	c "github.com/mecha/journal/components"
 	"github.com/mecha/journal/theme"
@@ -15,17 +16,24 @@ import (
 type App struct {
 	journal       *Journal
 	preview       *Preview
-	dayPicker     *DayPicker
 	tagBrowser    *TagBrowser
 	pwdInputState *c.InputState
 	logViewer     *c.Text
 	handler       c.EventHandler
+
+	dayPicker c.Component
+
+	// state
+	date           time.Time
+	dayPickerState *DayPickerState
 }
 
 func CreateApp(journal *Journal) *App {
 	app := &App{journal: journal}
+	app.date = time.Now()
 	app.preview = CreatePreview(journal)
 	app.dayPicker = CreateDayPicker(journal, app.preview)
+	app.dayPickerState = &DayPickerState{gotoInput: &c.InputState{}}
 	app.tagBrowser = CreateTagBrowser(journal, app.preview.Update, app.resetPreview)
 	app.logViewer = c.NewText([]string{})
 	app.pwdInputState = &c.InputState{}
@@ -43,7 +51,7 @@ func (app *App) addLog(message string) {
 }
 
 func (app *App) resetPreview() {
-	app.preview.Update(app.dayPicker.calendar.Date())
+	app.preview.Update(app.date)
 }
 
 func (app *App) handlePasswordInput() {
@@ -89,7 +97,7 @@ func (app *App) HandleEvent(ev t.Event) bool {
 					app.logViewer.SetLines([]string{})
 				}
 			case 't':
-				app.dayPicker.calendar.SetToday()
+				app.date = time.Now()
 				return true
 			}
 		case t.KeyCtrlU, t.KeyPgUp:
@@ -156,7 +164,16 @@ func (app *App) Render(r c.Renderer, hasFocus bool) {
 		logsInner := c.DrawPanel(logsRegion, "[4]─Log", theme.Borders(focus.Is(app.logViewer)))
 		app.logViewer.Render(logsInner, focus.Is(app.logViewer))
 
-		app.dayPicker.Render(calRegion, focus.Is(app.dayPicker))
+		app.handler = DayPicker2(calRegion, app.dayPickerState, DayPickerProps{
+			journal:  app.journal,
+			hasFocus: focus.Is(app.dayPicker),
+			date:     app.date,
+			OnChange: func(newValue time.Time) {
+				app.date = newValue
+				app.preview.Update(newValue)
+			},
+		})
+
 		app.tagBrowser.Render(tagsRegion, focus.Is(app.tagBrowser))
 		app.preview.Render(previewRegion, focus.Is(app.preview))
 

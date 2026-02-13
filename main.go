@@ -37,7 +37,7 @@ func main() {
 	app := CreateApp(journal)
 
 	journal.OnFSEvent(func(ev fsnotify.Event) {
-		app.preview.Update(app.dayPicker.calendar.Date())
+		app.preview.Update(app.date)
 		app.tagBrowser.UpdateTags()
 		screen.PostEvent(NewRerenderEvent())
 	})
