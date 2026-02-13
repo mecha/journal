@@ -29,7 +29,7 @@ type DayPickerState struct {
 
 func DayPicker(r c.Renderer, props DayPickerProps) c.EventHandler {
 	state := props.state
-	return c.Panel(r, c.PanelProps{
+	return c.Box(r, c.BoxProps{
 		Title:   fmt.Sprintf("[1]─%s %d", props.date.Month().String(), props.date.Year()),
 		Borders: c.BordersRound,
 		Style:   theme.Borders(props.hasFocus),
@@ -47,7 +47,7 @@ func DayPicker(r c.Renderer, props DayPickerProps) c.EventHandler {
 			switch {
 			case state.showGotoPrompt:
 				region := c.CenteredRegion(c.NewScreenRenderer(screen), 25, 3)
-				gotoHandler := c.Panel(region, c.PanelProps{
+				gotoHandler := c.Box(region, c.BoxProps{
 					Title:   "Go to (dd/mm/yyyy)",
 					Borders: c.BordersRound,
 					Style:   theme.BordersFocus(),
@@ -78,12 +78,13 @@ func DayPicker(r c.Renderer, props DayPickerProps) c.EventHandler {
 				}
 
 			case state.showDelConfirm:
-				region := c.CenteredRegion(c.NewScreenRenderer(screen), 40, 5)
+				region := c.CenteredRegion(c.NewScreenRenderer(screen), 40, 3)
 				handler = c.Confirm(region, true, c.ConfirmProps{
 					Message: "Are you sure you want to delete this journal entry?",
 					Yes:     "Yes",
 					No:      "No",
-					Border:  theme.Borders(true, theme.Dialog()),
+					Borders: c.BordersRound,
+					Style:   theme.Borders(true, theme.Dialog()),
 					Value:   state.delConfirmChoice,
 					OnSelect: func(value bool) {
 						state.delConfirmChoice = value
@@ -91,7 +92,6 @@ func DayPicker(r c.Renderer, props DayPickerProps) c.EventHandler {
 					OnChoice: func(accepted bool) {
 						if accepted {
 							props.journal.DeleteEntry(props.date)
-							// props.preview.Update(props.date)
 							log.Printf("deleted entry: %s", props.journal.EntryPath(props.date))
 						}
 						state.showDelConfirm = false
@@ -118,19 +118,23 @@ func DayPicker(r c.Renderer, props DayPickerProps) c.EventHandler {
 						state.gotoInput.Value = ""
 						state.gotoInput.Cursor = 0
 						return true
+
 					case t.KeyEnter:
 						err := props.journal.EditEntry(props.date)
 						if err != nil {
 							log.Print(err)
 						}
 						return true
+
 					case t.KeyRune:
 						switch ev.Rune() {
 						case 'd':
 							if has, _ := props.journal.HasEntry(props.date); has {
 								state.showDelConfirm = true
+								state.delConfirmChoice = false
 							}
 							return true
+
 						case 'g':
 							state.showGotoPrompt = true
 							return true

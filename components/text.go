@@ -6,16 +6,18 @@ import (
 	t "github.com/gdamore/tcell/v2"
 )
 
+type TextProps struct {
+	State *TextState
+	Style t.Style
+}
+
 type TextState struct {
 	Scroll Pos
 	Lines  []string
 }
 
-type TextProps struct {
-	Style t.Style
-}
-
-func Text(r Renderer, state *TextState, props TextProps) EventHandler {
+func Text(r Renderer, props TextProps) EventHandler {
+	state := props.State
 	width, height := r.Size()
 	maxLength := utils.MaxLength(state.Lines)
 	setScroll := func(pos Pos) {
@@ -37,42 +39,36 @@ func Text(r Renderer, state *TextState, props TextProps) EventHandler {
 		r.PutStrStyled(0, i, row, props.Style)
 	}
 
-	return func(ev t.Event) bool {
-		switch ev := ev.(type) {
+	return HandleKey(func(ev *t.EventKey) bool {
+		switch ev.Key() {
 		default:
 			return false
-		case *t.EventKey:
-			switch ev.Key() {
+		case t.KeyRune:
+			switch ev.Rune() {
 			default:
 				return false
-			case t.KeyRune:
-				switch ev.Rune() {
-				default:
-					return false
-				case 'h':
-					setScroll(state.Scroll.Add(-1, 0))
-				case 'j':
-					setScroll(state.Scroll.Add(0, 1))
-				case 'k':
-					setScroll(state.Scroll.Add(0, -1))
-				case 'l':
-					setScroll(state.Scroll.Add(1, 0))
-				case ',':
-					setScroll(state.Scroll.Add(0, -10))
-				case '.':
-					setScroll(state.Scroll.Add(0, 10))
-				}
-			case t.KeyLeft:
+			case 'h':
 				setScroll(state.Scroll.Add(-1, 0))
-			case t.KeyDown:
+			case 'j':
 				setScroll(state.Scroll.Add(0, 1))
-			case t.KeyUp:
+			case 'k':
 				setScroll(state.Scroll.Add(0, -1))
-			case t.KeyRight:
+			case 'l':
 				setScroll(state.Scroll.Add(1, 0))
+			case ',':
+				setScroll(state.Scroll.Add(0, -10))
+			case '.':
+				setScroll(state.Scroll.Add(0, 10))
 			}
+		case t.KeyLeft:
+			setScroll(state.Scroll.Add(-1, 0))
+		case t.KeyDown:
+			setScroll(state.Scroll.Add(0, 1))
+		case t.KeyUp:
+			setScroll(state.Scroll.Add(0, -1))
+		case t.KeyRight:
+			setScroll(state.Scroll.Add(1, 0))
 		}
-
 		return true
-	}
+	})
 }

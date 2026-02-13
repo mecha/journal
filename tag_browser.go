@@ -42,13 +42,14 @@ func TagsBrowser(r c.Renderer, props TagsProps) c.EventHandler {
 		title += " > References"
 	}
 
-	handler := c.Panel(r, c.PanelProps{
-		Title: title,
+	handler := c.Box(r, c.BoxProps{
+		Title:   title,
 		Borders: c.BordersRound,
-		Style: theme.Borders(props.hasFocus),
+		Style:   theme.Borders(props.hasFocus),
 		Children: func(r c.Renderer) c.EventHandler {
 			if !state.isShowRefs {
-				return c.DrawList(r, state.tagList, c.ListProps[string]{
+				return c.List(r, c.ListProps[string]{
+					State:        state.tagList,
 					Items:        state.tags,
 					ShowSelected: props.hasFocus,
 					RenderFunc:   func(tag string) string { return tag },
@@ -62,7 +63,8 @@ func TagsBrowser(r c.Renderer, props TagsProps) c.EventHandler {
 					},
 				})
 			} else {
-				return c.DrawList(r, state.refList, c.ListProps[time.Time]{
+				return c.List(r, c.ListProps[time.Time]{
+					State:        state.refList,
 					Items:        state.refs,
 					ShowSelected: props.hasFocus,
 					RenderFunc: func(item time.Time) string {

@@ -1,6 +1,7 @@
 package components
 
 import (
+	"strings"
 	"unicode/utf8"
 
 	"github.com/mecha/journal/theme"
@@ -8,14 +9,15 @@ import (
 	t "github.com/gdamore/tcell/v2"
 )
 
-type InputState struct {
-	Value  string
-	Cursor int
-}
-
 type InputProps struct {
 	State      *InputState
 	HideCursor bool
+	Mask       string
+}
+
+type InputState struct {
+	Value  string
+	Cursor int
 }
 
 func Input(r Renderer, props InputProps) EventHandler {
@@ -28,6 +30,10 @@ func Input(r Renderer, props InputProps) EventHandler {
 		text = state.Value
 	} else {
 		text = state.Value[len(state.Value)-maxRunes:]
+	}
+
+	if len(props.Mask) > 0 {
+		text = strings.Repeat(props.Mask, len(text))
 	}
 
 	r.Fill(' ', theme.Input())

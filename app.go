@@ -125,12 +125,15 @@ func DrawApp(r c.Renderer, app *App) c.EventHandler {
 
 	if !app.journal.IsMounted() {
 		rect := c.CenterRect(r.GetRegion(), min(width, 40), 3)
-		handler := c.Panel(r.SubRegion(rect), c.PanelProps{
-			Title: "Password",
+		handler := c.Box(r.SubRegion(rect), c.BoxProps{
+			Title:   "Password",
 			Borders: c.BordersRound,
-			Style: theme.BordersFocus(),
+			Style:   theme.BordersFocus(),
 			Children: func(r c.Renderer) c.EventHandler {
-				return c.Input(r, c.InputProps{State: app.pwdInput})
+				return c.Input(r, c.InputProps{
+					State: app.pwdInput,
+					Mask:  "*",
+				})
 			},
 		})
 		return func(ev t.Event) bool {
@@ -160,12 +163,27 @@ func DrawApp(r c.Renderer, app *App) c.EventHandler {
 		leftRegion, previewRegion := topRegion.SplitHorizontal(calendarWidth)
 		calRegion, tagsRegion := leftRegion.SplitVertical(calendarHeight)
 
-		logsHandler := c.Panel(logsRegion, c.PanelProps{
-			Title: "[4]─Log",
+		logsHandler := c.Box(logsRegion, c.BoxProps{
+			Title:   "[4]─Log",
 			Borders: c.BordersRound,
-			Style: theme.Borders(isLogsFocused),
+			Style:   theme.Borders(isLogsFocused),
 			Children: func(r c.Renderer) c.EventHandler {
-				return c.Text(r, app.logs, c.TextProps{})
+				return c.Text(r, c.TextProps{State: app.logs})
+			},
+		})
+
+		tagsHandler := TagsBrowser(tagsRegion, TagsProps{
+			state:    app.tagsList,
+			journal:  app.journal,
+			hasFocus: app.focus == FocusTags,
+		})
+
+		previewHandler := c.Box(previewRegion, c.BoxProps{
+			Title:   "[3]─Preview",
+			Borders: c.BordersRound,
+			Style:   theme.Borders(app.focus == FocusPreview),
+			Children: func(r c.Renderer) c.EventHandler {
+				return c.Text(r, c.TextProps{State: app.preview})
 			},
 		})
 
@@ -177,21 +195,6 @@ func DrawApp(r c.Renderer, app *App) c.EventHandler {
 			OnChange: func(newValue time.Time) {
 				app.date = newValue
 				app.showPreview(newValue)
-			},
-		})
-
-		tagsHandler := TagsBrowser(tagsRegion, TagsProps{
-			state:    app.tagsList,
-			journal:  app.journal,
-			hasFocus: app.focus == FocusTags,
-		})
-
-		previewHandler := c.Panel(previewRegion, c.PanelProps{
-			Title: "[3]─Preview",
-			Borders: c.BordersRound,
-			Style: theme.Borders(app.focus == FocusPreview),
-			Children: func(r c.Renderer) c.EventHandler {
-				return c.Text(r, app.preview, c.TextProps{})
 			},
 		})
 

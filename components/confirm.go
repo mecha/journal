@@ -1,8 +1,6 @@
 package components
 
 import (
-	"strings"
-
 	"github.com/mecha/journal/theme"
 	"github.com/mecha/journal/utils"
 
@@ -13,77 +11,84 @@ type ConfirmProps struct {
 	Yes, No  string
 	Message  string
 	Value    bool
-	Border   t.Style
+	Borders  BorderSet
+	Style    t.Style
 	OnSelect func(value bool)
 	OnChoice func(accepted bool)
 }
 
 func Confirm(r Renderer, hasFocus bool, props ConfirmProps) EventHandler {
-	bw, bh := r.Size()
+	maxWidth, _ := r.Size()
 
-	minWidth := len(props.Yes) + len(props.No) + 2
-	width := min(bw, max(40, minWidth))
+	btnsWidth := len(props.Yes) + 4 + len(props.No) + 4 + 2
+	width := max(maxWidth, btnsWidth)
 
 	lines := utils.WrapString(props.Message, width-2)
-	height := 3 + len(lines)
-
-	x, y := (bw-width)/2, (bh-height)/2
+	height := len(lines) + 3
 
 	region := CenteredRegion(r, width, height)
-
 	region.Fill(' ', theme.Dialog())
-	DrawBox(r, x, y, width, height, BordersRound, props.Border)
 
-	for i, line := range lines {
-		r.PutStr(x+1, y+1+i, line)
-	}
+	btnHandler := Box(region, BoxProps{
+		Borders: props.Borders,
+		Style:   props.Style,
+		Children: func(r Renderer) EventHandler {
+			w, h := r.Size()
 
-	right := x + width - 1
-	buttonY := y + height - 2
-
-	noBtnX := right - 2 - len(props.No) - 4
-	yesBtnX := noBtnX - 1 - len(props.Yes) - 4
-
-	DrawButton(r, noBtnX, buttonY, props.No, rune(props.No[0]), props.Value == false)
-	DrawButton(r, yesBtnX, buttonY, props.Yes, rune(props.Yes[0]), props.Value == true)
-
-	return func(ev t.Event) bool {
-		yes, no := strings.ToLower(props.Yes), strings.ToLower(props.No)
-
-		switch ev := ev.(type) {
-		default:
-			return false
-		case *t.EventKey:
-			switch ev.Key() {
-			default:
-				return false
-			case t.KeyRune:
-				switch ev.Rune() {
-				default:
-					return false
-				case rune(yes[0]):
-					if props.OnChoice != nil {
-						props.OnChoice(true)
-					}
-				case rune(no[0]):
-					if props.OnChoice != nil {
-						props.OnChoice(false)
-					}
-				}
-			case t.KeyEsc:
-				if props.OnChoice != nil {
-					props.OnChoice(false)
-				}
-			case t.KeyEnter:
-				if props.OnChoice != nil {
-					props.OnChoice(props.Value)
-				}
-			case t.KeyLeft, t.KeyRight, t.KeyTab:
-				if props.OnSelect != nil {
-					props.OnSelect(!props.Value)
-				}
+			for i, line := range lines {
+				r.PutStr(0, i, line)
 			}
+
+			noBtnX := w - 1 - len(props.No) - 4
+			yesBtnX := noBtnX - 1 - len(props.Yes) - 4
+
+			noHandler := Button(r, ButtonProps{
+				Pos:      Pos{noBtnX, h - 1},
+				Text:     props.No,
+				Shortcut: 'N',
+				HasFocus: props.Value == false,
+				OnEnter:  func() { props.OnChoice(false) },
+			})
+
+			yesHandler := Button(r, ButtonProps{
+				Pos:      Pos{yesBtnX, h - 1},
+				Text:     props.Yes,
+				Shortcut: 'Y',
+				HasFocus: props.Value == true,
+				OnEnter:  func() { props.OnChoice(true) },
+			})
+
+			return func(ev t.Event) bool {
+				if noHandler != nil && noHandler(ev) {
+					return true
+				}
+				if yesHandler != nil && yesHandler(ev) {
+					return true
+				}
+				return false
+			}
+		},
+	})
+
+	return HandleKey(func(ev *t.EventKey) bool {
+		if btnHandler != nil && btnHandler(ev) {
+			return true
 		}
-		return true
-	}
+
+		switch ev.Key() {
+		case t.KeyEsc:
+			if props.OnChoice != nil {
+				props.OnChoice(false)
+			}
+			return true
+
+		case t.KeyLeft, t.KeyRight, t.KeyTab:
+			if props.OnSelect != nil {
+				props.OnSelect(!props.Value)
+			}
+			return true
+		}
+
+		return false
+	})
 }
