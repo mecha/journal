@@ -12,10 +12,7 @@ import (
 
 const Version = "0.1.0"
 
-var (
-	screen t.Screen
-	focus  *c.FocusManager
-)
+var screen t.Screen
 
 func main() {
 	parseFlags()
@@ -37,8 +34,8 @@ func main() {
 	app := CreateApp(journal)
 
 	journal.OnFSEvent(func(ev fsnotify.Event) {
-		app.showEntryPreview(app.date)
-		app.tagBrowser.UpdateTags()
+		app.showPreview(app.date)
+		app.updateTags()
 		screen.PostEvent(NewRerenderEvent())
 	})
 
@@ -46,17 +43,7 @@ func main() {
 		screen.PostEvent(NewRerenderEvent())
 	})
 
-	log.SetOutput(app.logWriter())
-
-	focus = c.NewFocusManager(
-		[]c.Component{
-			app.dayPicker,
-			app.tagBrowser,
-			app.preview,
-			app.logViewer,
-		})
-
-	focus.SwitchTo(app.dayPicker)
+	log.SetOutput(&AppLogWriter{app})
 
 	defer func() {
 		err := recover()
@@ -69,18 +56,26 @@ func main() {
 
 	renderer := c.NewScreenRenderer(screen)
 
+	var handler c.EventHandler = nil
+
 	for {
 		ev := screen.PollEvent()
 
-		if !app.HandleEvent(ev) {
-			if ev, isKey := ev.(*t.EventKey); isKey && (ev.Key() == t.KeyCtrlC || ev.Rune() == 'q') {
-				journal.Unmount()
-				return
+		if handler == nil || !handler(ev) {
+			switch ev := ev.(type) {
+			case *t.EventResize:
+				screen.Sync()
+			case *t.EventKey:
+				if ev.Key() == t.KeyCtrlC || ev.Rune() == 'q' {
+					journal.Unmount()
+					return
+				}
 			}
 		}
 
 		screen.Clear()
-		app.Render(renderer, true)
+		screen.HideCursor()
+		handler = DrawApp(renderer, app)
 		screen.Show()
 	}
 }

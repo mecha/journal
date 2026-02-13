@@ -11,102 +11,80 @@ import (
 	t "github.com/gdamore/tcell/v2"
 )
 
-type TagBrowser struct {
-	journal        *Journal
-	tags           []string
-	files          []time.Time
-	tagListState   *c.ListState[string]
-	fileListState  *c.ListState[time.Time]
-	isShowingFiles bool
-	handler        c.EventHandler
-
-	fileList      *c.List[time.Time]
-	updatePreview func(time.Time)
-	resetPreview  func()
+type TagsState struct {
+	isShowRefs bool
+	tags       []string
+	refs       []time.Time
+	tagList    *c.ListState[string]
+	refList    *c.ListState[time.Time]
 }
 
-func CreateTagBrowser(journal *Journal, updatePreview func(time.Time), resetPreview func()) *TagBrowser {
-	b := &TagBrowser{
-		journal:       journal,
-		tags:          []string{},
-		tagListState:  &c.ListState[string]{},
-		fileListState: &c.ListState[time.Time]{},
-		resetPreview:  resetPreview,
-		updatePreview: updatePreview,
-	}
-
-	return b
-}
-
-func (b *TagBrowser) UpdateTags() {
-	if b.journal.IsMounted() {
-		b.tags, _ = b.journal.Tags()
-		slices.Sort(b.tags)
-		// b.tagList.SetItems(b.tags)
+func (state *TagsState) update(journal *Journal) {
+	if journal.IsMounted() {
+		state.tags, _ = journal.Tags()
+		slices.Sort(state.tags)
 	} else {
-		b.tags = []string{}
-		// b.tagList.SetItems([]string{})
+		state.tags = []string{}
 	}
 }
 
-func (b *TagBrowser) HandleEvent(ev t.Event) bool {
-	if b.handler != nil && b.handler(ev) {
-		return true
-	}
-
-	switch ev := ev.(type) {
-	case *t.EventKey:
-		switch ev.Key() {
-		case t.KeyEscape:
-			b.isShowingFiles = false
-			b.resetPreview()
-			return true
-		}
-	}
-
-	return false
+type TagsProps struct {
+	journal  *Journal
+	hasFocus bool
 }
 
-func (b *TagBrowser) Render(r c.Renderer, hasFocus bool) {
+func DrawTags(r c.Renderer, state *TagsState, props TagsProps) c.EventHandler {
 	title := "[2]─Tags"
-	if b.isShowingFiles {
+	if state.isShowRefs {
 		title += " > References"
 	}
 
-	region := c.DrawPanel(r, title, theme.Borders(hasFocus))
+	region := c.DrawPanel(r, title, theme.Borders(props.hasFocus))
 
-	if b.isShowingFiles {
-		b.handler = c.DrawList(region, b.fileListState, c.ListProps[time.Time]{
-			Items:        b.files,
-			ShowSelected: hasFocus,
+	var handler c.EventHandler
+
+	if !state.isShowRefs {
+		handler = c.DrawList(region, state.tagList, c.ListProps[string]{
+			Items:        state.tags,
+			ShowSelected: props.hasFocus,
+			RenderFunc:   func(tag string) string { return tag },
+			OnEnter: func(i int, tag string) {
+				entries, err := props.journal.SearchTag(tag)
+				if err != nil {
+					log.Print(err)
+				}
+				state.refs = entries
+				state.isShowRefs = true
+			},
+		})
+	} else {
+		handler = c.DrawList(region, state.refList, c.ListProps[time.Time]{
+			Items:        state.refs,
+			ShowSelected: props.hasFocus,
 			RenderFunc: func(item time.Time) string {
 				return item.Format("02 Jan 2006")
 			},
 			OnSelect: func(i int, item time.Time) {
-				b.updatePreview(item)
+				// b.updatePreview(item)
 			},
 			OnEnter: func(i int, item time.Time) {
-				err := b.journal.EditEntry(item)
+				err := props.journal.EditEntry(item)
 				if err != nil {
 					log.Print(err)
 				}
-				b.isShowingFiles = false
-				b.resetPreview()
+				state.isShowRefs = false
+				// b.resetPreview()
 			},
 		})
-	} else {
-		b.handler = c.DrawList(region, b.tagListState, c.ListProps[string]{
-			Items:        b.tags,
-			ShowSelected: hasFocus,
-			RenderFunc:   func(tag string) string { return tag },
-			OnEnter: func(i int, tag string) {
-				entries, err := b.journal.SearchTag(tag)
-				if err != nil {
-					log.Print(err)
-				}
-				b.files = entries
-				b.isShowingFiles = true
-			},
-		})
+	}
+
+	return func(ev t.Event) bool {
+		if state.isShowRefs {
+			if ev, isKey := ev.(*t.EventKey); isKey && ev.Key() == t.KeyEsc {
+				state.isShowRefs = false
+				return true
+			}
+		}
+		return handler(ev)
 	}
 }

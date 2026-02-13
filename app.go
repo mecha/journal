@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"io"
 	"log"
 	"strings"
 	"time"
@@ -14,69 +13,71 @@ import (
 )
 
 type App struct {
-	journal       *Journal
-	tagBrowser    *TagBrowser
-	pwdInputState *c.InputState
-	logViewer     *c.Text
-	handler       c.EventHandler
-
-	dayPicker c.Component
-	preview   *Preview
-
-	// state
-	date           time.Time
-	dayPickerState *DayPickerState
-	previewState   *c.TextState
+	journal   *Journal
+	focus     int
+	date      time.Time
+	dayPicker *DayPickerState
+	tagsList  *TagsState
+	preview   *c.TextState
+	pwdInput  *c.InputState
+	logsState *c.TextState
 }
 
+const (
+	FocusDayPicker = iota
+	FocusTags
+	FocusPreview
+	FocusLogs
+)
+
 func CreateApp(journal *Journal) *App {
-	app := &App{journal: journal}
-	app.date = time.Now()
-	// app.preview = CreatePreview(journal)
-	app.dayPicker = CreateDayPicker(journal, app.preview)
-	app.dayPickerState = &DayPickerState{gotoInput: &c.InputState{}}
-	app.previewState = &c.TextState{}
-	app.previewState.SetLines([]string{})
-	app.tagBrowser = CreateTagBrowser(journal, app.showEntryPreview, app.resetPreview)
-	app.logViewer = c.NewText([]string{})
-	app.pwdInputState = &c.InputState{}
+	app := &App{
+		journal:   journal,
+		focus:     FocusDayPicker,
+		date:      time.Now(),
+		dayPicker: &DayPickerState{gotoInput: &c.InputState{}},
+		preview:   &c.TextState{},
+		tagsList: &TagsState{
+			tags:    []string{},
+			refs:    []time.Time{},
+			tagList: &c.ListState[string]{},
+			refList: &c.ListState[time.Time]{},
+		},
+		logsState: &c.TextState{},
+		pwdInput:  &c.InputState{},
+	}
+	app.preview.SetLines([]string{})
 	return app
 }
 
-func (app *App) logWriter() io.Writer {
-	return &AppLogWriter{app}
-}
-
-func (app *App) addLog(message string) {
-	newLines := strings.Split(strings.TrimSuffix(message, "\n"), "\n")
-	app.logViewer.AddLines(newLines)
-	app.logViewer.ScrollToBottom()
-}
-
-func (app *App) showEntryPreview(date time.Time) {
+func (app *App) showPreview(date time.Time) {
 	if app.journal.IsMounted() {
 		entry, has, err := app.journal.GetEntry(date)
 		switch {
 		case err != nil:
 			log.Println(err)
 		case has:
-			app.previewState.SetLines(strings.Split(entry, "\n"))
+			app.preview.SetLines(strings.Split(entry, "\n"))
 		default:
-			app.previewState.SetLines([]string{"[No entry]"})
+			app.preview.SetLines([]string{"[No entry]"})
 		}
 	} else {
-		app.previewState.SetLines([]string{"[Journal is locked]"})
+		app.preview.SetLines([]string{"[Journal is locked]"})
 	}
 }
 
 func (app *App) resetPreview() {
-	app.showEntryPreview(app.date)
+	app.showPreview(app.date)
+}
+
+func (app *App) updateTags() {
+	app.tagsList.update(app.journal)
 }
 
 func (app *App) handlePasswordInput() {
-	password := app.pwdInputState.Value
-	app.pwdInputState.Value = ""
-	app.pwdInputState.Cursor = 0
+	password := app.pwdInput.Value
+	app.pwdInput.Value = ""
+	app.pwdInput.Cursor = 0
 
 	if !app.journal.IsMounted() {
 		err := app.journal.Mount(password)
@@ -88,47 +89,9 @@ func (app *App) handlePasswordInput() {
 		log.Println("Unlocked journal")
 		screen.HideCursor()
 
-		app.tagBrowser.UpdateTags()
+		app.updateTags()
 		app.resetPreview()
 	}
-}
-
-func (app *App) HandleEvent(ev t.Event) bool {
-	if app.handler != nil && app.handler(ev) {
-		return true
-	}
-
-	if focus.HandleEvent(ev) {
-		return true
-	}
-
-	switch ev := ev.(type) {
-	case *t.EventResize:
-		screen.Sync()
-		return true
-
-	case *t.EventKey:
-		switch key := ev.Key(); key {
-		case t.KeyRune:
-			switch ev.Rune() {
-			case 'c':
-				if focus.Is(app.logViewer) {
-					app.logViewer.SetLines([]string{})
-				}
-			case 't':
-				app.date = time.Now()
-				return true
-			}
-		case t.KeyCtrlU, t.KeyPgUp:
-			app.previewState.Scroll = app.previewState.Scroll.Add(0, -10)
-			return true
-		case t.KeyCtrlD, t.KeyPgDn:
-			app.previewState.Scroll = app.previewState.Scroll.Add(0, 10)
-			return true
-		}
-	}
-
-	return false
 }
 
 const logsHeightSm = 6
@@ -139,8 +102,7 @@ const calendarHeight = 15
 var minSizeLocked = c.Size{W: 28, H: 3}
 var minSizeUnlocked = c.Size{W: 64, H: 26}
 
-func (app *App) Render(r c.Renderer, hasFocus bool) {
-	app.handler = nil
+func DrawApp(r c.Renderer, app *App) c.EventHandler {
 	width, height := r.Size()
 
 	var minSize c.Size
@@ -158,21 +120,23 @@ func (app *App) Render(r c.Renderer, hasFocus bool) {
 		r.PutStr(x, y, line1)
 		r.PutStr(x, y+1, line2)
 		r.PutStr(x, y+2, line3)
-		return
+		return nil
 	}
 
 	if !app.journal.IsMounted() {
 		rect := c.CenterRect(r.GetRegion(), min(width, 40), 3)
 		inner := c.DrawPanel(r.SubRegion(rect), "Password", theme.BordersFocus())
-		app.handler = c.DrawInput(inner, app.pwdInputState, c.InputProps{
+
+		return c.DrawInput(inner, app.pwdInput, c.InputProps{
 			OnEnter: app.handlePasswordInput,
 		})
 	} else {
 		var logsHeight = logsHeightSm
-		if focus.Is(app.logViewer) {
+		isLogsFocused := app.focus == FocusLogs
+		if isLogsFocused {
 			logsHeight = min(14, logsHeightLg)
 		} else {
-			app.logViewer.ScrollToBottom()
+			app.logsState.ScrollToBottom()
 		}
 
 		mainRegion, helpRegion := r.SplitVertical(height - 1)
@@ -180,53 +144,109 @@ func (app *App) Render(r c.Renderer, hasFocus bool) {
 		leftRegion, previewRegion := topRegion.SplitHorizontal(calendarWidth)
 		calRegion, tagsRegion := leftRegion.SplitVertical(calendarHeight)
 
-		logsInner := c.DrawPanel(logsRegion, "[4]─Log", theme.Borders(focus.Is(app.logViewer)))
-		app.logViewer.Render(logsInner, focus.Is(app.logViewer))
+		insideLogs := c.DrawPanel(logsRegion, "[4]─Log", theme.Borders(isLogsFocused))
+		logsHandler := c.DrawText(insideLogs, app.logsState, c.TextProps{})
 
-		dayPickerFocused := focus.Is(app.dayPicker)
-		dayPickerHandler := DayPicker2(calRegion, app.dayPickerState, DayPickerProps{
+		dayPickerHandler := DayPicker2(calRegion, app.dayPicker, DayPickerProps{
 			journal:  app.journal,
-			hasFocus: dayPickerFocused,
+			hasFocus: app.focus == FocusDayPicker,
 			date:     app.date,
 			OnChange: func(newValue time.Time) {
 				app.date = newValue
-				app.showEntryPreview(newValue)
+				app.showPreview(newValue)
 			},
 		})
-		if dayPickerFocused {
-			app.handler = dayPickerHandler
+
+		tagsHandler := DrawTags(tagsRegion, app.tagsList, TagsProps{
+			journal:  app.journal,
+			hasFocus: app.focus == FocusTags,
+		})
+
+		insidePreview := c.DrawPanel(previewRegion, "[3]─Preview", theme.Borders(app.focus == FocusPreview))
+		previewHandler := c.DrawText(insidePreview, app.preview, c.TextProps{})
+
+		DrawHelp(helpRegion, app.focus)
+
+		return func(ev t.Event) bool {
+			switch app.focus {
+			case FocusDayPicker:
+				if dayPickerHandler(ev) {
+					return true
+				}
+			case FocusTags:
+				if tagsHandler(ev) {
+					return true
+				}
+			case FocusPreview:
+				if previewHandler(ev) {
+					return true
+				}
+			case FocusLogs:
+				if logsHandler(ev) {
+					return true
+				}
+			}
+
+			switch ev := ev.(type) {
+			case *t.EventKey:
+				switch key := ev.Key(); key {
+				case t.KeyRune:
+					switch ev.Rune() {
+					case '1':
+						app.focus = FocusDayPicker
+					case '2':
+						app.focus = FocusTags
+					case '3':
+						app.focus = FocusPreview
+					case '4':
+						app.focus = FocusLogs
+					case 'c':
+						if app.focus == FocusLogs {
+							app.logsState.SetLines([]string{})
+						}
+					case 't':
+						app.date = time.Now()
+						return true
+					}
+				case t.KeyTab:
+					app.focus = (app.focus + 1) % 4
+				case t.KeyBacktab:
+					app.focus = (app.focus + 3) % 4
+				case t.KeyCtrlU, t.KeyPgUp:
+					app.preview.Scroll = app.preview.Scroll.Add(0, -10)
+					return true
+				case t.KeyCtrlD, t.KeyPgDn:
+					app.preview.Scroll = app.preview.Scroll.Add(0, 10)
+					return true
+				}
+			}
+
+			return false
 		}
-
-		app.tagBrowser.Render(tagsRegion, focus.Is(app.tagBrowser))
-
-		previewFocused := focus.Is(app.preview)
-		insidePreview := c.DrawPanel(previewRegion, "[3]─Preview", theme.Borders(previewFocused))
-		previewHandler := c.DrawText(insidePreview, app.previewState, c.TextProps{})
-		if previewFocused {
-			app.handler = previewHandler
-		}
-
-		helpRegion.PutStrStyled(0, 0, app.bottomBarText(), theme.Help())
 	}
 }
 
-func (app *App) bottomBarText() string {
-	switch focus.Current() {
-	case app.dayPicker:
-		return "Select day: ⬍/⬌ | Edit: <ENTER> | Delete: d | Today: t | Go to specific day: g | Next/Previous month: n/p | Exit: q"
-	case app.tagBrowser:
-		return "Select: ⬍ | View entries: <ENTER>"
-	case app.logViewer:
-		return "Select: ⬍ | Clear: c"
-	case app.preview:
-		return "Scroll: ⬍"
+func DrawHelp(r c.Renderer, focus int) {
+	text := ""
+	switch focus {
+	case FocusDayPicker:
+		text = "Select day: ⬍/⬌ | Edit: <ENTER> | Delete: d | Today: t | Go to specific day: g | Next/Previous month: n/p | Exit: q"
+	case FocusTags:
+		text = "Select: ⬍ | View entries: <ENTER>"
+	case FocusPreview:
+		text = "Scroll: ⬍"
+	case FocusLogs:
+		text = "Select: ⬍ | Clear: c"
 	}
-	return ""
+
+	r.PutStrStyled(0, 0, text, theme.Help())
 }
 
 type AppLogWriter struct{ app *App }
 
 func (w *AppLogWriter) Write(data []byte) (int, error) {
-	w.app.addLog(string(data))
+	newLines := strings.Split(strings.TrimSuffix(string(data), "\n"), "\n")
+	w.app.logsState.AddLines(newLines)
+	w.app.logsState.ScrollToBottom()
 	return len(data), nil
 }
