@@ -16,6 +16,7 @@ type customComponent[S any] struct {
 type RenderFunc[S any] func(state S, renderer Renderer, hasFocus bool)
 type EventHandlerFunc[S any] func(state S, ev t.Event) (consumed bool)
 type EventHandler func(ev t.Event) bool
+type Children func(r Renderer) EventHandler
 
 func NewComponent[S any](state S, render RenderFunc[S], eventHandler EventHandlerFunc[S]) *customComponent[S] {
 	return &customComponent[S]{state, render, eventHandler}

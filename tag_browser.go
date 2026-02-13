@@ -11,6 +11,12 @@ import (
 	t "github.com/gdamore/tcell/v2"
 )
 
+type TagsProps struct {
+	state    *TagsState
+	journal  *Journal
+	hasFocus bool
+}
+
 type TagsState struct {
 	isShowRefs bool
 	tags       []string
@@ -28,55 +34,55 @@ func (state *TagsState) update(journal *Journal) {
 	}
 }
 
-type TagsProps struct {
-	journal  *Journal
-	hasFocus bool
-}
+func TagsBrowser(r c.Renderer, props TagsProps) c.EventHandler {
+	state := props.state
 
-func DrawTags(r c.Renderer, state *TagsState, props TagsProps) c.EventHandler {
 	title := "[2]─Tags"
 	if state.isShowRefs {
 		title += " > References"
 	}
 
-	region := c.DrawPanel(r, title, theme.Borders(props.hasFocus))
-
-	var handler c.EventHandler
-
-	if !state.isShowRefs {
-		handler = c.DrawList(region, state.tagList, c.ListProps[string]{
-			Items:        state.tags,
-			ShowSelected: props.hasFocus,
-			RenderFunc:   func(tag string) string { return tag },
-			OnEnter: func(i int, tag string) {
-				entries, err := props.journal.SearchTag(tag)
-				if err != nil {
-					log.Print(err)
-				}
-				state.refs = entries
-				state.isShowRefs = true
-			},
-		})
-	} else {
-		handler = c.DrawList(region, state.refList, c.ListProps[time.Time]{
-			Items:        state.refs,
-			ShowSelected: props.hasFocus,
-			RenderFunc: func(item time.Time) string {
-				return item.Format("02 Jan 2006")
-			},
-			OnSelect: func(i int, item time.Time) {
-				// b.updatePreview(item)
-			},
-			OnEnter: func(i int, item time.Time) {
-				err := props.journal.EditEntry(item)
-				if err != nil {
-					log.Print(err)
-				}
-				state.isShowRefs = false
-				// b.resetPreview()
-			},
-		})
-	}
+	handler := c.Panel(r, c.PanelProps{
+		Title: title,
+		Borders: c.BordersRound,
+		Style: theme.Borders(props.hasFocus),
+		Children: func(r c.Renderer) c.EventHandler {
+			if !state.isShowRefs {
+				return c.DrawList(r, state.tagList, c.ListProps[string]{
+					Items:        state.tags,
+					ShowSelected: props.hasFocus,
+					RenderFunc:   func(tag string) string { return tag },
+					OnEnter: func(i int, tag string) {
+						entries, err := props.journal.SearchTag(tag)
+						if err != nil {
+							log.Print(err)
+						}
+						state.refs = entries
+						state.isShowRefs = true
+					},
+				})
+			} else {
+				return c.DrawList(r, state.refList, c.ListProps[time.Time]{
+					Items:        state.refs,
+					ShowSelected: props.hasFocus,
+					RenderFunc: func(item time.Time) string {
+						return item.Format("02 Jan 2006")
+					},
+					OnSelect: func(i int, item time.Time) {
+						// b.updatePreview(item)
+					},
+					OnEnter: func(i int, item time.Time) {
+						err := props.journal.EditEntry(item)
+						if err != nil {
+							log.Print(err)
+						}
+						state.isShowRefs = false
+						// b.resetPreview()
+					},
+				})
+			}
+		},
+	})
 
 	return func(ev t.Event) bool {
 		if state.isShowRefs {

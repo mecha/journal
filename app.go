@@ -20,7 +20,7 @@ type App struct {
 	tagsList  *TagsState
 	preview   *c.TextState
 	pwdInput  *c.InputState
-	logsState *c.TextState
+	logs      *c.TextState
 }
 
 const (
@@ -43,10 +43,10 @@ func CreateApp(journal *Journal) *App {
 			tagList: &c.ListState[string]{},
 			refList: &c.ListState[time.Time]{},
 		},
-		logsState: &c.TextState{},
-		pwdInput:  &c.InputState{},
+		logs:     &c.TextState{},
+		pwdInput: &c.InputState{},
 	}
-	app.preview.SetLines([]string{})
+	app.preview.Lines = []string{}
 	return app
 }
 
@@ -57,12 +57,12 @@ func (app *App) showPreview(date time.Time) {
 		case err != nil:
 			log.Println(err)
 		case has:
-			app.preview.SetLines(strings.Split(entry, "\n"))
+			app.preview.Lines = strings.Split(entry, "\n")
 		default:
-			app.preview.SetLines([]string{"[No entry]"})
+			app.preview.Lines = []string{"[No entry]"}
 		}
 	} else {
-		app.preview.SetLines([]string{"[Journal is locked]"})
+		app.preview.Lines = []string{"[Journal is locked]"}
 	}
 }
 
@@ -125,18 +125,34 @@ func DrawApp(r c.Renderer, app *App) c.EventHandler {
 
 	if !app.journal.IsMounted() {
 		rect := c.CenterRect(r.GetRegion(), min(width, 40), 3)
-		inner := c.DrawPanel(r.SubRegion(rect), "Password", theme.BordersFocus())
-
-		return c.DrawInput(inner, app.pwdInput, c.InputProps{
-			OnEnter: app.handlePasswordInput,
+		handler := c.Panel(r.SubRegion(rect), c.PanelProps{
+			Title: "Password",
+			Borders: c.BordersRound,
+			Style: theme.BordersFocus(),
+			Children: func(r c.Renderer) c.EventHandler {
+				return c.Input(r, c.InputProps{State: app.pwdInput})
+			},
 		})
+		return func(ev t.Event) bool {
+			if handler != nil && handler(ev) {
+				return true
+			}
+			switch ev := ev.(type) {
+			case *t.EventKey:
+				if ev.Key() == t.KeyEnter {
+					app.handlePasswordInput()
+					return true
+				}
+			}
+			return false
+		}
 	} else {
 		var logsHeight = logsHeightSm
 		isLogsFocused := app.focus == FocusLogs
 		if isLogsFocused {
 			logsHeight = min(14, logsHeightLg)
 		} else {
-			app.logsState.ScrollToBottom()
+			app.logs.Scroll.Y = len(app.logs.Lines)
 		}
 
 		mainRegion, helpRegion := r.SplitVertical(height - 1)
@@ -144,10 +160,17 @@ func DrawApp(r c.Renderer, app *App) c.EventHandler {
 		leftRegion, previewRegion := topRegion.SplitHorizontal(calendarWidth)
 		calRegion, tagsRegion := leftRegion.SplitVertical(calendarHeight)
 
-		insideLogs := c.DrawPanel(logsRegion, "[4]─Log", theme.Borders(isLogsFocused))
-		logsHandler := c.DrawText(insideLogs, app.logsState, c.TextProps{})
+		logsHandler := c.Panel(logsRegion, c.PanelProps{
+			Title: "[4]─Log",
+			Borders: c.BordersRound,
+			Style: theme.Borders(isLogsFocused),
+			Children: func(r c.Renderer) c.EventHandler {
+				return c.Text(r, app.logs, c.TextProps{})
+			},
+		})
 
-		dayPickerHandler := DayPicker2(calRegion, app.dayPicker, DayPickerProps{
+		dayPickerHandler := DayPicker(calRegion, DayPickerProps{
+			state:    app.dayPicker,
 			journal:  app.journal,
 			hasFocus: app.focus == FocusDayPicker,
 			date:     app.date,
@@ -157,13 +180,20 @@ func DrawApp(r c.Renderer, app *App) c.EventHandler {
 			},
 		})
 
-		tagsHandler := DrawTags(tagsRegion, app.tagsList, TagsProps{
+		tagsHandler := TagsBrowser(tagsRegion, TagsProps{
+			state:    app.tagsList,
 			journal:  app.journal,
 			hasFocus: app.focus == FocusTags,
 		})
 
-		insidePreview := c.DrawPanel(previewRegion, "[3]─Preview", theme.Borders(app.focus == FocusPreview))
-		previewHandler := c.DrawText(insidePreview, app.preview, c.TextProps{})
+		previewHandler := c.Panel(previewRegion, c.PanelProps{
+			Title: "[3]─Preview",
+			Borders: c.BordersRound,
+			Style: theme.Borders(app.focus == FocusPreview),
+			Children: func(r c.Renderer) c.EventHandler {
+				return c.Text(r, app.preview, c.TextProps{})
+			},
+		})
 
 		DrawHelp(helpRegion, app.focus)
 
@@ -202,7 +232,7 @@ func DrawApp(r c.Renderer, app *App) c.EventHandler {
 						app.focus = FocusLogs
 					case 'c':
 						if app.focus == FocusLogs {
-							app.logsState.SetLines([]string{})
+							app.logs.Lines = []string{}
 						}
 					case 't':
 						app.date = time.Now()
@@ -246,7 +276,7 @@ type AppLogWriter struct{ app *App }
 
 func (w *AppLogWriter) Write(data []byte) (int, error) {
 	newLines := strings.Split(strings.TrimSuffix(string(data), "\n"), "\n")
-	w.app.logsState.AddLines(newLines)
-	w.app.logsState.ScrollToBottom()
+	w.app.logs.Lines = append(w.app.logs.Lines, newLines...)
+	w.app.logs.Scroll = c.Pos{X: 0, Y: len(w.app.logs.Lines)}
 	return len(data), nil
 }
