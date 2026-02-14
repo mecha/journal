@@ -65,3 +65,21 @@ func ParseDayMonthYear(s string) (time.Time, error) {
 
 	return time.Date(nums[2], time.Month(nums[1]), nums[0], 0, 0, 0, 0, time.Local), nil
 }
+
+func ParseYearMonthDay(s string) (time.Time, error) {
+	parts := strings.Split(s, "/")
+	if len(parts) != 3 {
+		return time.Time{}, errors.New("invalid date: must be <year>/<month>/<day>")
+	}
+
+	nums := [3]int{0, 0, 0}
+	for i, part := range parts {
+		num, err := strconv.Atoi(part)
+		if err != nil {
+			return time.Time{}, errors.New("invalid date: \"" + part + "\" is not a number")
+		}
+		nums[i] = num
+	}
+
+	return time.Date(nums[0], time.Month(nums[1]), nums[2], 0, 0, 0, 0, time.Local), nil
+}

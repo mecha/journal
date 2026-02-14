@@ -291,7 +291,7 @@ func (j *Journal) GetEntryAtPath(path string) (time.Time, error) {
 	relpath := path[len(j.mountPath):]
 	dateStr := strings.TrimSuffix(strings.TrimPrefix(relpath, "/"), ".md")
 
-	date, err := utils.ParseDayMonthYear(dateStr)
+	date, err := utils.ParseYearMonthDay(dateStr)
 	if err != nil {
 		return date, err
 	}
@@ -340,7 +340,7 @@ func (j *Journal) SearchTag(tag string) ([]time.Time, error) {
 	fileMap := map[time.Time]bool{}
 	scanner := bufio.NewScanner(bytes.NewBuffer(output))
 	for scanner.Scan() {
-		date, err := utils.ParseDayMonthYear(scanner.Text())
+		date, err := j.GetEntryAtPath(scanner.Text())
 		if err != nil {
 			continue
 		}
