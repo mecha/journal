@@ -87,7 +87,6 @@ func (app *App) handlePasswordInput() {
 		}
 
 		log.Println("Unlocked journal")
-		screen.HideCursor()
 
 		app.updateTags()
 		app.resetPreview()

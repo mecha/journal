@@ -12,13 +12,10 @@ import (
 
 const Version = "0.1.0"
 
-var screen t.Screen
-
 func main() {
 	parseFlags()
 
-	var err error
-	screen, err = t.NewScreen()
+	screen, err := t.NewScreen()
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -33,15 +30,20 @@ func main() {
 
 	app := CreateApp(journal)
 
+	triggerRender := func() {
+		// any event will trigger a render, so we just use a time event
+		ev := &t.EventTime{}
+		ev.SetEventNow()
+		screen.PostEvent(ev)
+	}
+
 	journal.OnFSEvent(func(ev fsnotify.Event) {
 		app.showPreview(app.date)
 		app.updateTags()
-		screen.PostEvent(NewRerenderEvent())
+		triggerRender()
 	})
 
-	journal.OnUnmount(func() {
-		screen.PostEvent(NewRerenderEvent())
-	})
+	journal.OnUnmount(triggerRender)
 
 	log.SetOutput(&AppLogWriter{app})
 
@@ -55,8 +57,7 @@ func main() {
 	}()
 
 	renderer := c.NewScreenRenderer(screen)
-
-	var handler c.EventHandler = nil
+	handler := (c.EventHandler)(nil)
 
 	for {
 		ev := screen.PollEvent()
@@ -78,11 +79,4 @@ func main() {
 		handler = DrawApp(renderer, app)
 		screen.Show()
 	}
-}
-
-// Creates a simple time event, used to trigger a re-render.
-func NewRerenderEvent() t.Event {
-	ev := &t.EventTime{}
-	ev.SetEventNow()
-	return ev
 }

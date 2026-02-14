@@ -46,7 +46,7 @@ func DayPicker(r c.Renderer, props DayPickerProps) c.EventHandler {
 
 			switch {
 			case state.showGotoPrompt:
-				region := c.CenteredRegion(c.NewScreenRenderer(screen), 25, 3)
+				region := c.CenteredRegion(r.GetScreen(), 25, 3)
 				gotoHandler := c.Box(region, c.BoxProps{
 					Title:   "Go to (dd/mm/yyyy)",
 					Borders: c.BordersRound,
@@ -78,7 +78,7 @@ func DayPicker(r c.Renderer, props DayPickerProps) c.EventHandler {
 				}
 
 			case state.showDelConfirm:
-				region := c.CenteredRegion(c.NewScreenRenderer(screen), 40, 3)
+				region := c.CenteredRegion(r.GetScreen(), 40, 3)
 				handler = c.Confirm(region, true, c.ConfirmProps{
 					Message: "Are you sure you want to delete this journal entry?",
 					Yes:     "Yes",
