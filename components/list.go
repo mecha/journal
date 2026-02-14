@@ -66,6 +66,10 @@ func List[Item any](r Renderer, props ListProps[Item]) EventHandler {
 			case bottomTarget > state.VScroll:
 				state.VScroll = min(numItems-pageSize, bottomTarget)
 			}
+
+			if props.OnSelect != nil {
+				props.OnSelect(state.Cursor, props.Items[state.Cursor])
+			}
 		}
 
 		switch ev.Key() {

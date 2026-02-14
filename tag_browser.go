@@ -12,9 +12,11 @@ import (
 )
 
 type TagsProps struct {
-	state    *TagsState
-	journal  *Journal
-	hasFocus bool
+	state         *TagsState
+	journal       *Journal
+	hasFocus      bool
+	onSelectRef   func(time.Time)
+	onDeselectRef func()
 }
 
 type TagsState struct {
@@ -63,7 +65,11 @@ func TagsBrowser(r c.Renderer, props TagsProps) c.EventHandler {
 							log.Print(err)
 						}
 						state.refs = entries
+						state.refList.Cursor = 0
 						state.isShowRefs = true
+						if len(entries) > 0 {
+							props.onSelectRef(entries[0])
+						}
 					},
 				})
 			} else {
@@ -75,7 +81,7 @@ func TagsBrowser(r c.Renderer, props TagsProps) c.EventHandler {
 						return item.Format("02 Jan 2006")
 					},
 					OnSelect: func(i int, item time.Time) {
-						// b.updatePreview(item)
+						props.onSelectRef(item)
 					},
 					OnEnter: func(i int, item time.Time) {
 						err := props.journal.EditEntry(item)
@@ -83,20 +89,31 @@ func TagsBrowser(r c.Renderer, props TagsProps) c.EventHandler {
 							log.Print(err)
 						}
 						state.isShowRefs = false
-						// b.resetPreview()
 					},
 				})
 			}
 		},
 	})
 
-	return func(ev t.Event) bool {
-		if state.isShowRefs {
-			if ev, isKey := ev.(*t.EventKey); isKey && ev.Key() == t.KeyEsc {
-				state.isShowRefs = false
+	return c.Chain(
+		handler,
+		c.HandleKey(func(ev *t.EventKey) bool {
+			switch ev.Key() {
+			case t.KeyEsc:
+				if state.isShowRefs {
+					state.isShowRefs = false
+					if props.onDeselectRef != nil {
+						props.onDeselectRef()
+					}
+					return true
+				}
+			}
+			switch ev.Rune() {
+			case 'r':
+				state.update(props.journal)
 				return true
 			}
-		}
-		return handler(ev)
-	}
+			return false
+		}),
+	)
 }

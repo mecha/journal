@@ -164,9 +164,11 @@ func DrawApp(r c.Renderer, app *App) c.EventHandler {
 		})
 
 		tagsHandler := TagsBrowser(tagsRegion, TagsProps{
-			state:    app.tagsList,
-			journal:  app.journal,
-			hasFocus: app.focus == FocusTags,
+			state:         app.tagsList,
+			journal:       app.journal,
+			hasFocus:      app.focus == FocusTags,
+			onSelectRef:   app.showEntryPreview,
+			onDeselectRef: func() { app.showEntryPreview(app.date) },
 		})
 
 		previewHandler := c.Box(previewRegion, c.BoxProps{

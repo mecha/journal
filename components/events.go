@@ -21,3 +21,14 @@ func HandleKey(handler KeyEventHandler) EventHandler {
 		return false
 	}
 }
+
+func Chain(handlers ...EventHandler) EventHandler {
+	return func(ev t.Event) bool {
+		for _, handler := range handlers {
+			if handler(ev) {
+				return true
+			}
+		}
+		return false
+	}
+}
