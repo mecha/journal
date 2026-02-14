@@ -3,12 +3,14 @@ package components
 import (
 	"strings"
 
-	"github.com/mecha/journal/theme"
-
 	t "github.com/gdamore/tcell/v2"
 )
 
-// A subset of the tcell.Screen interface, for just the rendering stuff
+// The simplest component is a function that outputs via a renderer and returns
+// a function for handling events.
+type Component func(r Renderer) EventHandler
+
+// Similar to the tcell `Screen` interface, focused on rendering
 type Renderer interface {
 	// Creates a new renderer that renders inside a particular region
 	// of the current renderer.
@@ -66,9 +68,9 @@ type Renderer interface {
 }
 
 var _ Renderer = (*ScreenRenderer)(nil)
-var _ Renderer = (*Region)(nil)
+var _ Renderer = (*RegionRenderer)(nil)
 
-// Adapter to make a tcell Screen a renderer
+// Adapter to make a tcell Screen a Renderer
 type ScreenRenderer struct{ t.Screen }
 
 func NewScreenRenderer(screen t.Screen) Renderer {
@@ -76,7 +78,7 @@ func NewScreenRenderer(screen t.Screen) Renderer {
 }
 
 func (r *ScreenRenderer) SubRegion(rect Rect) Renderer {
-	return &Region{r, rect}
+	return &RegionRenderer{r, rect}
 }
 
 func (r *ScreenRenderer) GetRegion() Rect {
@@ -99,70 +101,70 @@ func (r *ScreenRenderer) SplitVertical(y int) (Renderer, Renderer) {
 }
 
 // A renderer that renders to a rectangular region of another renderer.
-type Region struct {
+type RegionRenderer struct {
 	Renderer
 	Rect
 }
 
-func CenteredRegion(parent Renderer, w, h int) *Region {
+func CenteredRegion(parent Renderer, w, h int) *RegionRenderer {
 	pw, ph := parent.Size()
 	rect := CenterRect(Rect{Pos{0, 0}, Size{pw, ph}}, w, h)
-	return &Region{parent, rect}
+	return &RegionRenderer{parent, rect}
 }
 
-func (r *Region) SubRegion(rect Rect) Renderer {
-	return &Region{r, rect}
+func (r *RegionRenderer) SubRegion(rect Rect) Renderer {
+	return &RegionRenderer{r, rect}
 }
 
-func (r *Region) GetRegion() Rect {
+func (r *RegionRenderer) GetRegion() Rect {
 	return r.Rect
 }
 
-func (r *Region) GetScreen() Renderer {
+func (r *RegionRenderer) GetScreen() Renderer {
 	return r.Renderer.GetScreen()
 }
 
-func (r *Region) SplitHorizontal(x int) (Renderer, Renderer) {
+func (r *RegionRenderer) SplitHorizontal(x int) (Renderer, Renderer) {
 	left, right := r.Rect.SplitHorizontal(x)
 	return r.SubRegion(left), r.SubRegion(right)
 }
 
-func (r *Region) SplitVertical(y int) (Renderer, Renderer) {
+func (r *RegionRenderer) SplitVertical(y int) (Renderer, Renderer) {
 	top, bottom := r.Rect.SplitVertical(y)
 	return r.SubRegion(top), r.SubRegion(bottom)
 }
 
-func (r *Region) Fill(rune rune, style t.Style) {
+func (r *RegionRenderer) Fill(rune rune, style t.Style) {
 	for dy := range r.Rect.H {
 		r.Renderer.PutStrStyled(r.X, r.Y+dy, strings.Repeat(string(rune), r.Rect.W), style)
 	}
 }
 
-func (r *Region) Put(x int, y int, str string, style t.Style) (string, int) {
+func (r *RegionRenderer) Put(x int, y int, str string, style t.Style) (string, int) {
 	return r.Renderer.Put(r.Rect.X+x, r.Rect.Y+y, str, style)
 }
 
-func (r *Region) PutStr(x int, y int, str string) {
+func (r *RegionRenderer) PutStr(x int, y int, str string) {
 	r.Renderer.PutStr(r.Rect.X+x, r.Rect.Y+y, str)
 }
 
-func (r *Region) PutStrStyled(x int, y int, str string, style t.Style) {
+func (r *RegionRenderer) PutStrStyled(x int, y int, str string, style t.Style) {
 	r.Renderer.PutStrStyled(r.Rect.X+x, r.Rect.Y+y, str, style)
 }
 
-func (r *Region) ShowCursor(x int, y int) {
+func (r *RegionRenderer) ShowCursor(x int, y int) {
 	r.Renderer.ShowCursor(r.X+x, r.Y+y)
 }
 
-func (r *Region) HideCursor() {
+func (r *RegionRenderer) HideCursor() {
 	r.Renderer.HideCursor()
 }
 
-func (r *Region) SetCursorStyle(style t.CursorStyle, color ...t.Color) {
+func (r *RegionRenderer) SetCursorStyle(style t.CursorStyle, color ...t.Color) {
 	r.Renderer.SetCursorStyle(style, color...)
 }
 
-func (r *Region) Size() (width, height int) {
+func (r *RegionRenderer) Size() (width, height int) {
 	return r.Rect.WH()
 }
 
@@ -215,71 +217,4 @@ func CenterRect(rect Rect, w, h int) Rect {
 		},
 		Size{w, h},
 	}
-}
-
-type BorderSet struct {
-	LR, TB, RB, LB, TR, TL, LRB, TLR, TLB, TRB, TLRB string
-}
-
-var BordersRound = BorderSet{
-	LR:   "─",
-	TB:   "│",
-	RB:   "╭",
-	LB:   "╮",
-	TR:   "╰",
-	TL:   "╯",
-	LRB:  "┬",
-	TLR:  "┴",
-	TRB:  "├",
-	TLB:  "┤",
-	TLRB: "┼",
-}
-
-var BordersSquare = BorderSet{
-	LR:   "─",
-	TB:   "│",
-	RB:   "┌",
-	LB:   "┐",
-	TR:   "└",
-	TL:   "┘",
-	LRB:  "┬",
-	TLR:  "┴",
-	TRB:  "├",
-	TLB:  "┤",
-	TLRB: "┼",
-}
-
-func DrawBox(r Renderer, x, y, w, h int, borders BorderSet, style t.Style) {
-	x2, y2 := x+w-1, y+h-1
-
-	r.Put(x, y, borders.RB, style)
-	r.Put(x2, y, borders.LB, style)
-	r.Put(x, y2, borders.TR, style)
-	r.Put(x2, y2, borders.TL, style)
-
-	for i := range w - 2 {
-		r.Put(x+i+1, y, borders.LR, style)
-		r.Put(x+i+1, y2, borders.LR, style)
-	}
-
-	for i := range h - 2 {
-		r.Put(x, y+i+1, borders.TB, style)
-		r.Put(x2, y+i+1, borders.TB, style)
-	}
-}
-
-func DrawButton(r Renderer, x, y int, text string, underline rune, hasFocus bool) int {
-	btnStyle := theme.Button(hasFocus)
-	fullText := "  " + text + "  "
-
-	r.PutStrStyled(x, y, fullText, btnStyle)
-
-	if underline > 0 {
-		i := strings.IndexRune(text, underline)
-		if i >= 0 {
-			r.PutStrStyled(x+2+i, y, string(underline), btnStyle.Underline(true))
-		}
-	}
-
-	return len(fullText)
 }

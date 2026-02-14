@@ -12,110 +12,138 @@ import (
 	t "github.com/gdamore/tcell/v2"
 )
 
-type DayPicker struct {
-	journal       *Journal
-	preview       *Preview
-	calendar      *c.Calendar
-	confirmDelete *c.Confirm
-	gotoPrompt    *c.InputPrompt
+type DayPickerProps struct {
+	state    *DayPickerState
+	journal  *Journal
+	hasFocus bool
+	date     time.Time
+	OnChange func(time.Time)
 }
 
-func CreateDayPicker(journal *Journal, preview *Preview) *DayPicker {
-	calendar := c.NewCalendar().
-		UnderlineDay(func(date time.Time) bool {
-			hasEntry, _ := journal.HasEntry(date)
-			return hasEntry
-		}).
-		OnDayChanged(preview.Update)
+type DayPickerState struct {
+	gotoInput        *c.InputState
+	showGotoPrompt   bool
+	showDelConfirm   bool
+	delConfirmChoice bool
+}
 
-	return &DayPicker{
-		journal:  journal,
-		preview:  preview,
-		calendar: calendar,
-		gotoPrompt: c.NewInputPrompt(
-			"Go to (dd/mm/yyyy)",
-			c.NewInput(),
-			func(input *c.Input, cancelled bool) {
-				if !cancelled {
-					value := input.Value()
-					date, err := utils.ParseDayMonthYear(value)
-					if err == nil {
-						calendar.SetDate(date)
-					} else {
-						log.Println(err)
+func DayPicker(r c.Renderer, props DayPickerProps) c.EventHandler {
+	state := props.state
+	return c.Box(r, c.BoxProps{
+		Title:   fmt.Sprintf("[1]─%s %d", props.date.Month().String(), props.date.Year()),
+		Borders: c.BordersRound,
+		Style:   theme.Borders(props.hasFocus),
+		Children: func(r c.Renderer) c.EventHandler {
+			handler := c.Calendar(r, c.CalendarProps{
+				BorderStyle: theme.Borders(props.hasFocus),
+				Selected:    props.date,
+				OnSelectDay: props.OnChange,
+				UnderlineDays: func(t time.Time) bool {
+					has, _ := props.journal.HasEntry(t)
+					return has
+				},
+			})
+
+			switch {
+			case state.showGotoPrompt:
+				region := c.CenteredRegion(c.NewScreenRenderer(screen), 25, 3)
+				gotoHandler := c.Box(region, c.BoxProps{
+					Title:   "Go to (dd/mm/yyyy)",
+					Borders: c.BordersRound,
+					Style:   theme.BordersFocus(),
+					Children: func(r c.Renderer) c.EventHandler {
+						return c.Input(r, c.InputProps{State: state.gotoInput})
+					},
+				})
+				handler = func(ev t.Event) bool {
+					switch ev := ev.(type) {
+					case *t.EventKey:
+						if ev.Key() == t.KeyEnter {
+							date, err := utils.ParseDayMonthYear(state.gotoInput.Value)
+							if err == nil {
+								props.date = date
+							} else {
+								log.Println(err)
+							}
+							state.gotoInput.Value = ""
+							state.gotoInput.Cursor = 0
+							state.showGotoPrompt = false
+							return true
+						}
+					}
+					if gotoHandler != nil {
+						return gotoHandler(ev)
+					}
+					return false
+				}
+
+			case state.showDelConfirm:
+				region := c.CenteredRegion(c.NewScreenRenderer(screen), 40, 3)
+				handler = c.Confirm(region, true, c.ConfirmProps{
+					Message: "Are you sure you want to delete this journal entry?",
+					Yes:     "Yes",
+					No:      "No",
+					Borders: c.BordersRound,
+					Style:   theme.Borders(true, theme.Dialog()),
+					Value:   state.delConfirmChoice,
+					OnSelect: func(value bool) {
+						state.delConfirmChoice = value
+					},
+					OnChoice: func(accepted bool) {
+						if accepted {
+							props.journal.DeleteEntry(props.date)
+							log.Printf("deleted entry: %s", props.journal.EntryPath(props.date))
+						}
+						state.showDelConfirm = false
+					},
+				})
+			}
+
+			return func(ev t.Event) bool {
+				if !props.journal.IsMounted() {
+					return false
+				}
+
+				if handler != nil && handler(ev) {
+					return true
+				}
+
+				switch ev := ev.(type) {
+				case *t.EventKey:
+					switch ev.Key() {
+					case t.KeyEsc:
+						state.showGotoPrompt = false
+						state.showDelConfirm = false
+						state.delConfirmChoice = false
+						state.gotoInput.Value = ""
+						state.gotoInput.Cursor = 0
+						return true
+
+					case t.KeyEnter:
+						err := props.journal.EditEntry(props.date)
+						if err != nil {
+							log.Print(err)
+						}
+						return true
+
+					case t.KeyRune:
+						switch ev.Rune() {
+						case 'd':
+							if has, _ := props.journal.HasEntry(props.date); has {
+								state.showDelConfirm = true
+								state.delConfirmChoice = false
+							}
+							return true
+
+						case 'g':
+							state.showGotoPrompt = true
+							return true
+						}
 					}
 				}
-				input.SetValue("")
-				focus.Pop()
-				screen.HideCursor()
-				screen.PostEvent(NewRerenderEvent())
-			}),
-		confirmDelete: c.NewConfirm("Are you sure you want to delete this journal entry?", func(accepted bool) {
-			if accepted {
-				date := calendar.Date()
-				journal.DeleteEntry(date)
-				log.Printf("deleted entry: %s", journal.EntryPath(date))
-				preview.Update(date)
+
+				return false
 			}
-			focus.Pop()
-		}),
-	}
-}
-
-func (d *DayPicker) HandleEvent(ev t.Event) bool {
-	if !d.journal.IsMounted() {
-		return false
-	}
-
-	if focus.Is(d.confirmDelete) && d.confirmDelete.HandleEvent(ev) {
-		return true
-	}
-
-	if focus.Is(d.gotoPrompt) && d.gotoPrompt.HandleEvent(ev) {
-		return true
-	}
-
-	switch ev := ev.(type) {
-	case *t.EventKey:
-		switch ev.Key() {
-		case t.KeyEnter:
-			date := d.calendar.Date()
-			err := d.journal.EditEntry(date)
-			if err != nil {
-				log.Print(err)
-			}
-			return true
-		case t.KeyRune:
-			switch ev.Rune() {
-			case 'd':
-				if has, _ := d.journal.HasEntry(d.calendar.Date()); has {
-					focus.Push(d.confirmDelete)
-				}
-				return true
-			case 'g':
-				focus.Push(d.gotoPrompt)
-				return true
-			}
-		}
-	}
-
-	return d.calendar.HandleEvent(ev)
-}
-
-func (dp *DayPicker) Render(r c.Renderer, hasFocus bool) {
-	date := dp.calendar.Date()
-	title := fmt.Sprintf("[1]─%s %d", date.Month().String(), date.Year())
-	panelRegion := c.DrawPanel(r, title, theme.Borders(hasFocus))
-
-	dp.calendar.Render(panelRegion, hasFocus)
-
-	popupRegion := c.CenteredRegion(c.NewScreenRenderer(screen), 40, 3)
-
-	if focus.Is(dp.gotoPrompt) {
-		dp.gotoPrompt.Render(popupRegion, true)
-	}
-
-	if focus.Is(dp.confirmDelete) {
-		dp.confirmDelete.Render(popupRegion, true)
-	}
+		},
+	})
 }

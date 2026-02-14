@@ -11,94 +11,88 @@ import (
 	t "github.com/gdamore/tcell/v2"
 )
 
-type TagBrowser struct {
-	journal      *Journal
-	tagList      *c.List[string]
-	fileList     *c.List[time.Time]
-	selectedTag  string
-	resetPreview func()
+type TagsProps struct {
+	state    *TagsState
+	journal  *Journal
+	hasFocus bool
 }
 
-func CreateTagBrowser(journal *Journal, updatePreview func(time.Time), resetPreview func()) *TagBrowser {
-	b := &TagBrowser{
-		journal:      journal,
-		tagList:      c.NewList([]string{}),
-		fileList:     c.NewList([]time.Time{}),
-		selectedTag:  "",
-		resetPreview: resetPreview,
-	}
-
-	b.tagList.
-		OnEnter(func(i int, tag string) {
-			entries, err := b.journal.SearchTag(tag)
-			if err != nil {
-				log.Print(err)
-			}
-
-			b.fileList.SetItems(entries)
-			b.selectedTag = tag
-		})
-
-	b.fileList.
-		RenderWith(func(item time.Time) string {
-			return item.Format("02 Jan 2006")
-		}).
-		OnSelect(func(i int, item time.Time) {
-			updatePreview(item)
-		}).
-		OnEnter(func(i int, item time.Time) {
-			err := b.journal.EditEntry(item)
-			if err != nil {
-				log.Print(err)
-			}
-			b.selectedTag = ""
-			b.resetPreview()
-		})
-
-	return b
+type TagsState struct {
+	isShowRefs bool
+	tags       []string
+	refs       []time.Time
+	tagList    *c.ListState[string]
+	refList    *c.ListState[time.Time]
 }
 
-func (b *TagBrowser) UpdateTags() {
-	if b.journal.IsMounted() {
-		tags, _ := b.journal.Tags()
-		slices.Sort(tags)
-		b.tagList.SetItems(tags)
+func (state *TagsState) update(journal *Journal) {
+	if journal.IsMounted() {
+		state.tags, _ = journal.Tags()
+		slices.Sort(state.tags)
 	} else {
-		b.tagList.SetItems([]string{})
+		state.tags = []string{}
 	}
 }
 
-func (b *TagBrowser) HandleEvent(ev t.Event) bool {
-	switch ev := ev.(type) {
-	case *t.EventKey:
-		switch ev.Key() {
-		case t.KeyEscape:
-			b.selectedTag = ""
-			b.resetPreview()
-			return true
-		}
-	}
-
-	if b.selectedTag == "" {
-		return b.tagList.HandleEvent(ev)
-	} else {
-		return b.fileList.HandleEvent(ev)
-	}
-}
-
-func (b *TagBrowser) Render(r c.Renderer, hasFocus bool) {
-	isShowingFiles := len(b.selectedTag) > 0
+func TagsBrowser(r c.Renderer, props TagsProps) c.EventHandler {
+	state := props.state
 
 	title := "[2]─Tags"
-	if isShowingFiles {
+	if state.isShowRefs {
 		title += " > References"
 	}
 
-	region := c.DrawPanel(r, title, theme.Borders(hasFocus))
+	handler := c.Box(r, c.BoxProps{
+		Title:   title,
+		Borders: c.BordersRound,
+		Style:   theme.Borders(props.hasFocus),
+		Children: func(r c.Renderer) c.EventHandler {
+			if !state.isShowRefs {
+				return c.List(r, c.ListProps[string]{
+					State:        state.tagList,
+					Items:        state.tags,
+					ShowSelected: props.hasFocus,
+					RenderFunc:   func(tag string) string { return tag },
+					OnEnter: func(i int, tag string) {
+						entries, err := props.journal.SearchTag(tag)
+						if err != nil {
+							log.Print(err)
+						}
+						state.refs = entries
+						state.isShowRefs = true
+					},
+				})
+			} else {
+				return c.List(r, c.ListProps[time.Time]{
+					State:        state.refList,
+					Items:        state.refs,
+					ShowSelected: props.hasFocus,
+					RenderFunc: func(item time.Time) string {
+						return item.Format("02 Jan 2006")
+					},
+					OnSelect: func(i int, item time.Time) {
+						// b.updatePreview(item)
+					},
+					OnEnter: func(i int, item time.Time) {
+						err := props.journal.EditEntry(item)
+						if err != nil {
+							log.Print(err)
+						}
+						state.isShowRefs = false
+						// b.resetPreview()
+					},
+				})
+			}
+		},
+	})
 
-	if isShowingFiles {
-		b.fileList.Render(region, hasFocus)
-	} else {
-		b.tagList.Render(region, hasFocus)
+	return func(ev t.Event) bool {
+		if state.isShowRefs {
+			if ev, isKey := ev.(*t.EventKey); isKey && ev.Key() == t.KeyEsc {
+				state.isShowRefs = false
+				return true
+			}
+		}
+		return handler(ev)
 	}
 }

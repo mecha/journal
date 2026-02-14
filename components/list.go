@@ -1,7 +1,6 @@
 package components
 
 import (
-	"fmt"
 	"unicode/utf8"
 
 	"github.com/mecha/journal/theme"
@@ -10,148 +9,103 @@ import (
 	t "github.com/gdamore/tcell/v2"
 )
 
-type List[Item any] struct {
-	items      []Item
-	renderFunc ListRenderFunc[Item]
-	onEnter    ListItemFunc[Item]
-	onSelect   ListItemFunc[Item]
+type ListProps[Item any] struct {
+	State        *ListState[Item]
+	Items        []Item
+	ShowSelected bool
+	RenderFunc   ListRenderFunc[Item]
+	OnEnter      ListItemFunc[Item]
+	OnSelect     ListItemFunc[Item]
+}
 
-	cursor   int
-	vscroll  int
-	hscroll  int
-	lastSize Size
+type ListState[Item any] struct {
+	Cursor   int
+	VScroll  int
+	HScroll  int
+	LastSize Size
 }
 
 type ListRenderFunc[Item any] func(item Item) string
 type ListItemFunc[Item any] func(i int, item Item)
 
-func NewList[Item any](items []Item) *List[Item] {
-	return &List[Item]{
-		items:      items,
-		renderFunc: func(item Item) string { return fmt.Sprintf("%v", item) },
-		onEnter:    func(i int, item Item) {},
-	}
-}
-
-func (l *List[Item]) RenderWith(renderFunc ListRenderFunc[Item]) *List[Item] {
-	l.renderFunc = renderFunc
-	return l
-}
-
-func (l *List[Item]) OnEnter(onEnter ListItemFunc[Item]) *List[Item] {
-	l.onEnter = onEnter
-	return l
-}
-
-func (l *List[Item]) OnSelect(onSelect ListItemFunc[Item]) *List[Item] {
-	l.onSelect = onSelect
-	return l
-}
-
-func (l *List[Item]) AddItem(item Item) {
-	l.items = append(l.items, item)
-	l.MoveCursor(0)
-}
-
-func (l *List[Item]) SetItems(items []Item) {
-	l.items = items
-	l.MoveCursor(0)
-}
-
-func (l *List[Item]) MoveCursor(n int) {
-	l.cursor = max(0, min(len(l.items)-1, l.cursor+n))
-	h := max(3, l.lastSize.H)
-
-	pageSize := max(0, h-2)
-	topTarget := l.cursor - 2
-	bottomTarget := l.cursor + 2 - pageSize
-
-	switch {
-	case topTarget < l.vscroll:
-		l.vscroll = max(0, topTarget)
-	case bottomTarget > l.vscroll:
-		l.vscroll = min(len(l.items)-pageSize, bottomTarget)
-	}
-
-	if l.onSelect != nil && l.cursor < len(l.items) {
-		l.onSelect(l.cursor, l.items[l.cursor])
-	}
-}
-
-func (l *List[Item]) Up()       { l.MoveCursor(-1) }
-func (l *List[Item]) Down()     { l.MoveCursor(1) }
-func (l *List[Item]) PageUp()   { l.MoveCursor(-l.lastSize.H - 2) }
-func (l *List[Item]) PageDown() { l.MoveCursor(l.lastSize.H - 2) }
-func (l *List[Item]) Top()      { l.cursor = 0 }
-func (l *List[Item]) Bottom()   { l.cursor = len(l.items) - 1 }
-
-func (l *List[Item]) ScrollLeft() {
-	l.hscroll = max(0, l.hscroll-1)
-}
-
-func (l *List[Item]) ScrollRight() {
-	maxLength := 0
-	for _, item := range l.items {
-		length := utf8.RuneCountInString(l.renderFunc(item))
-		if length > maxLength {
-			maxLength = length
-		}
-	}
-	maxHScroll := maxLength - l.lastSize.W
-	l.hscroll = min(maxHScroll, l.hscroll+1)
-}
-
-func (l *List[Item]) HandleEvent(ev t.Event) bool {
-	switch ev := ev.(type) {
-	case *t.EventKey:
-		switch ev.Key() {
-		case t.KeyRune:
-			switch ev.Rune() {
-			case 'k':
-				l.Up()
-			case 'j':
-				l.Down()
-			case ',':
-				l.PageUp()
-			case '.':
-				l.PageDown()
-			case '<':
-				l.Top()
-			case '>':
-				l.Bottom()
-			}
-		case t.KeyUp:
-			l.Up()
-		case t.KeyDown:
-			l.Down()
-		case t.KeyLeft:
-			l.ScrollLeft()
-		case t.KeyRight:
-			l.ScrollRight()
-		case t.KeyEnter:
-			if l.cursor < len(l.items) {
-				l.onEnter(l.cursor, l.items[l.cursor])
-			}
-		}
-	}
-	return false
-}
-
-func (l *List[Item]) Render(r Renderer, hasFocus bool) {
+func List[Item any](r Renderer, props ListProps[Item]) EventHandler {
 	width, height := r.Size()
-	l.lastSize = Size{width, height}
+	state := props.State
+	state.LastSize = Size{width, height}
+
+	rendered := make([]string, 0, min(height, len(props.Items)))
 
 	for i := range height {
-		index := l.vscroll + i
+		index := state.VScroll + i
 
-		if index < len(l.items) {
-			itemStr := l.renderFunc(l.items[index])
-			text := utils.ScrollString(itemStr, l.hscroll, width, " ")
+		if index < len(props.Items) {
+			itemStr := props.RenderFunc(props.Items[index])
+			text := utils.ScrollString(itemStr, state.HScroll, width, " ")
+			rendered = append(rendered, text)
 
-			isSelected := hasFocus && index == l.cursor
+			isSelected := props.ShowSelected && index == state.Cursor
 			style := theme.ListItem(isSelected)
 
 			r.PutStrStyled(0, i, text, style)
 		}
 	}
+
+	return HandleKey(func(ev *t.EventKey) bool {
+		moveCursor := func(offset int) {
+			numItems := len(props.Items)
+			state.Cursor = max(0, min(numItems-1, state.Cursor+offset))
+			h := max(3, state.LastSize.H)
+
+			pageSize := max(0, h-2)
+			topTarget := state.Cursor - 2
+			bottomTarget := state.Cursor + 2 - pageSize
+
+			switch {
+			case topTarget < state.VScroll:
+				state.VScroll = max(0, topTarget)
+			case bottomTarget > state.VScroll:
+				state.VScroll = min(numItems-pageSize, bottomTarget)
+			}
+		}
+
+		switch ev.Key() {
+		case t.KeyRune:
+			switch ev.Rune() {
+			case 'k':
+				moveCursor(-1)
+			case 'j':
+				moveCursor(1)
+			case ',':
+				moveCursor(-state.LastSize.H - 2)
+			case '.':
+				moveCursor(state.LastSize.H - 2)
+			case '<':
+				state.Cursor = 0
+			case '>':
+				state.Cursor = len(props.Items) - 1
+			}
+		case t.KeyUp:
+			moveCursor(-1)
+		case t.KeyDown:
+			moveCursor(1)
+		case t.KeyLeft:
+			state.HScroll = max(0, state.HScroll-1)
+		case t.KeyRight:
+			maxLength := 0
+			for _, item := range props.Items {
+				length := utf8.RuneCountInString(props.RenderFunc(item))
+				if length > maxLength {
+					maxLength = length
+				}
+			}
+			maxHScroll := maxLength - state.LastSize.W
+			state.HScroll = min(maxHScroll, state.HScroll+1)
+		case t.KeyEnter:
+			if props.OnEnter != nil && state.Cursor < len(props.Items) {
+				props.OnEnter(state.Cursor, props.Items[state.Cursor])
+			}
+		}
+
+		return false
+	})
 }
