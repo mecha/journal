@@ -50,7 +50,7 @@ func CreateApp(journal *Journal) *App {
 	return app
 }
 
-func (app *App) showPreview(date time.Time) {
+func (app *App) showEntryPreview(date time.Time) {
 	if app.journal.IsMounted() {
 		entry, has, err := app.journal.GetEntry(date)
 		switch {
@@ -64,14 +64,6 @@ func (app *App) showPreview(date time.Time) {
 	} else {
 		app.preview.Lines = []string{"[Journal is locked]"}
 	}
-}
-
-func (app *App) resetPreview() {
-	app.showPreview(app.date)
-}
-
-func (app *App) updateTags() {
-	app.tagsList.update(app.journal)
 }
 
 func (app *App) handlePasswordInput() {
@@ -88,8 +80,8 @@ func (app *App) handlePasswordInput() {
 
 		log.Println("Unlocked journal")
 
-		app.updateTags()
-		app.resetPreview()
+		app.tagsList.update(app.journal)
+		app.showEntryPreview(app.date)
 	}
 }
 
@@ -193,7 +185,7 @@ func DrawApp(r c.Renderer, app *App) c.EventHandler {
 			date:     app.date,
 			OnChange: func(newValue time.Time) {
 				app.date = newValue
-				app.showPreview(newValue)
+				app.showEntryPreview(newValue)
 			},
 		})
 

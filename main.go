@@ -38,8 +38,8 @@ func main() {
 	}
 
 	journal.OnFSEvent(func(ev fsnotify.Event) {
-		app.showPreview(app.date)
-		app.updateTags()
+		app.showEntryPreview(app.date)
+		app.tagsList.update(journal)
 		triggerRender()
 	})
 
