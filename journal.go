@@ -34,27 +34,27 @@ func init() {
 }
 
 type Journal struct {
-	cipherPath    string
-	mountPath     string
-	idleTimeout   string
-	command       *exec.Cmd
-	isMounted     bool
-	errorChan     chan error
-	onUnmountFunc func()
-	onFSEventFunc func(ev fsnotify.Event)
-	watcher       *rfsnotify.RWatcher
+	cipherPath  string
+	mountPath   string
+	idleTimeout string
+	command     *exec.Cmd
+	isMounted   bool
+	errorChan   chan error
+	onUnmount   func()
+	onFSEvent   func(ev fsnotify.Event)
+	watcher     *rfsnotify.RWatcher
 }
 
 func NewJournal(cipherPath, mountPath string, idleTimeout string) (*Journal, error) {
 	journal := &Journal{
-		cipherPath:    strings.TrimSuffix(cipherPath, "/"),
-		mountPath:     strings.TrimSuffix(mountPath, "/"),
-		idleTimeout:   idleTimeout,
-		command:       nil,
-		isMounted:     false,
-		errorChan:     make(chan error),
-		onUnmountFunc: nil,
-		onFSEventFunc: nil,
+		cipherPath:  strings.TrimSuffix(cipherPath, "/"),
+		mountPath:   strings.TrimSuffix(mountPath, "/"),
+		idleTimeout: idleTimeout,
+		command:     nil,
+		isMounted:   false,
+		errorChan:   make(chan error),
+		onUnmount:   nil,
+		onFSEvent:   nil,
 	}
 
 	watcher, err := rfsnotify.NewWatcher()
@@ -64,18 +64,6 @@ func NewJournal(cipherPath, mountPath string, idleTimeout string) (*Journal, err
 	journal.watcher = watcher
 
 	return journal, nil
-}
-
-func (j *Journal) IsMounted() bool {
-	return j.isMounted
-}
-
-func (j *Journal) OnUnmount(callback func()) {
-	j.onUnmountFunc = callback
-}
-
-func (j *Journal) OnFSEvent(callback func(ev fsnotify.Event)) {
-	j.onFSEventFunc = callback
 }
 
 func (j *Journal) Mount(password string) error {
@@ -138,8 +126,8 @@ func (j *Journal) Mount(password string) error {
 		}
 		j.isMounted = false
 		j.watcher.Close()
-		if j.onUnmountFunc != nil {
-			j.onUnmountFunc()
+		if j.onUnmount != nil {
+			j.onUnmount()
 		}
 		j.errorChan <- err
 	}()
@@ -154,8 +142,8 @@ func (j *Journal) handleWatcherEvents() {
 			if !ok {
 				return
 			}
-			if j.onFSEventFunc != nil {
-				j.onFSEventFunc(ev)
+			if j.onFSEvent != nil {
+				j.onFSEvent(ev)
 			}
 		case err, ok := <-j.watcher.Errors:
 			if !ok {
@@ -249,7 +237,7 @@ func (j *Journal) CreateEntry(date time.Time) (string, error) {
 	}
 	defer file.Close()
 
-	title := j.EntryTitle(date)
+	title := date.Format("Mon - 02 Jan 2006")
 	_, err = file.WriteString("# " + title + "\n\n")
 	if err != nil {
 		return "", err
@@ -277,10 +265,6 @@ func (j *Journal) EditEntry(date time.Time) error {
 	err := openInEditor(filepath, winTitle)
 
 	return err
-}
-
-func (j *Journal) EntryTitle(date time.Time) string {
-	return date.Format("Mon - 02 Jan 2006")
 }
 
 func (j *Journal) GetEntryAtPath(path string) (time.Time, error) {

@@ -26,7 +26,7 @@ type TagsState struct {
 }
 
 func (state *TagsState) update(journal *Journal) {
-	if journal.IsMounted() {
+	if journal.isMounted {
 		state.tags, _ = journal.Tags()
 		slices.Sort(state.tags)
 	} else {

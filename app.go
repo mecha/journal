@@ -51,7 +51,7 @@ func CreateApp(journal *Journal) *App {
 }
 
 func (app *App) showEntryPreview(date time.Time) {
-	if app.journal.IsMounted() {
+	if app.journal.isMounted {
 		entry, has, err := app.journal.GetEntry(date)
 		switch {
 		case err != nil:
@@ -71,7 +71,7 @@ func (app *App) handlePasswordInput() {
 	app.pwdInput.Value = ""
 	app.pwdInput.Cursor = 0
 
-	if !app.journal.IsMounted() {
+	if !app.journal.isMounted {
 		err := app.journal.Mount(password)
 		if err != nil {
 			log.Println("failed to unlock journal; ", err)
@@ -97,7 +97,7 @@ func DrawApp(r c.Renderer, app *App) c.EventHandler {
 	width, height := r.Size()
 
 	var minSize c.Size
-	if app.journal.IsMounted() {
+	if app.journal.isMounted {
 		minSize = minSizeUnlocked
 	} else {
 		minSize = minSizeLocked
@@ -114,7 +114,7 @@ func DrawApp(r c.Renderer, app *App) c.EventHandler {
 		return nil
 	}
 
-	if !app.journal.IsMounted() {
+	if !app.journal.isMounted {
 		rect := c.CenterRect(r.GetRegion(), min(width, 40), 3)
 		handler := c.Box(r.SubRegion(rect), c.BoxProps{
 			Title:   "Password",

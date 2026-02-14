@@ -37,13 +37,13 @@ func main() {
 		screen.PostEvent(ev)
 	}
 
-	journal.OnFSEvent(func(ev fsnotify.Event) {
+	journal.onFSEvent = func(ev fsnotify.Event) {
 		app.showEntryPreview(app.date)
 		app.tagsList.update(journal)
 		triggerRender()
-	})
+	}
 
-	journal.OnUnmount(triggerRender)
+	journal.onUnmount = triggerRender
 
 	log.SetOutput(&AppLogWriter{app})
 

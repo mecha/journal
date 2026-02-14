@@ -100,7 +100,7 @@ func DayPicker(r c.Renderer, props DayPickerProps) c.EventHandler {
 			}
 
 			return func(ev t.Event) bool {
-				if !props.journal.IsMounted() {
+				if !props.journal.isMounted {
 					return false
 				}
 
