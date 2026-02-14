@@ -11,8 +11,13 @@ import (
 )
 
 const Version = "0.1.0"
+const MinGCFSVersion = "2.6.1"
 
 func main() {
+	if err := checkGCFSVersion(MinGCFSVersion); err != nil {
+		log.Fatal(err)
+	}
+
 	parseFlags()
 
 	screen, err := t.NewScreen()

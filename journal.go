@@ -22,16 +22,7 @@ import (
 	"gopkg.in/fsnotify.v1"
 )
 
-const minGoCryptFSVersion = "2.6.1"
 const MountWaitTime = time.Millisecond * 150
-
-func init() {
-	err := checkMinGoCryptFSVersion()
-	if err != nil {
-		fmt.Println(err)
-		os.Exit(1)
-	}
-}
 
 type Journal struct {
 	cipherPath  string
@@ -337,7 +328,7 @@ func (j *Journal) SearchTag(tag string) ([]time.Time, error) {
 	return entries, nil
 }
 
-func checkMinGoCryptFSVersion() error {
+func checkGCFSVersion(minVersion string) error {
 	cmd := exec.Command("gocryptfs", "-version")
 	output, err := cmd.Output()
 	if err != nil {
@@ -359,9 +350,9 @@ func checkMinGoCryptFSVersion() error {
 		return err
 	}
 
-	constraint, _ := version.NewConstraint(">= " + minGoCryptFSVersion)
+	constraint, _ := version.NewConstraint(">= " + minVersion)
 	if !constraint.Check(actualVersion) {
-		return errors.New("gocryptfs version " + minGoCryptFSVersion + " is required, found v" + versionStr)
+		return errors.New("gocryptfs version " + minVersion + " is required, found v" + versionStr)
 	}
 
 	return nil
