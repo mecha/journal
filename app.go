@@ -272,7 +272,7 @@ func DrawHelp(r c.Renderer, focus int) {
 	text := ""
 	switch focus {
 	case FocusDayPicker:
-		text = "Select day: ⬍/⬌ | Edit: <ENTER> | Delete: d | Today: t | Go to specific day: g | Next/Previous month: n/p | Exit: q"
+		text = "Select day: ⬍/⬌ | Edit: <ENTER> or e | Delete: d | Today: t | Go to specific day: g | Exit: q"
 	case FocusTags:
 		text = "Select: ⬍ | View entries: <ENTER>"
 	case FocusPreview:

@@ -84,7 +84,7 @@ func TagsBrowser(r c.Renderer, props TagsProps) c.EventHandler {
 						props.onSelectRef(item)
 					},
 					OnEnter: func(i int, item time.Time) {
-						err := props.journal.EditEntry(item)
+						err := props.journal.EditEntry(item, false)
 						if err != nil {
 							log.Print(err)
 						}

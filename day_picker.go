@@ -120,25 +120,37 @@ func DayPicker(r c.Renderer, props DayPickerProps) c.EventHandler {
 						return true
 
 					case t.KeyEnter:
-						err := props.journal.EditEntry(props.date)
+						err := props.journal.EditEntry(props.date, false)
 						if err != nil {
 							log.Print(err)
 						}
 						return true
 
 					case t.KeyRune:
-						switch ev.Rune() {
-						case 'd':
-							if has, _ := props.journal.HasEntry(props.date); has {
-								state.showDelConfirm = true
-								state.delConfirmChoice = false
-							}
-							return true
+						break
 
-						case 'g':
-							state.showGotoPrompt = true
-							return true
+					default:
+						return false
+					}
+
+					switch ev.Rune() {
+					case 'd':
+						if has, _ := props.journal.HasEntry(props.date); has {
+							state.showDelConfirm = true
+							state.delConfirmChoice = false
 						}
+						return true
+
+					case 'g':
+						state.showGotoPrompt = true
+						return true
+
+					case 'e':
+						err := props.journal.EditEntry(props.date, true)
+						if err != nil {
+							log.Print(err)
+						}
+						return true
 					}
 				}
 

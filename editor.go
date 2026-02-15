@@ -10,20 +10,24 @@ import (
 var errNoEditor = errors.New("the $EDITOR environment variable is not set")
 var errNoTmux = errors.New("cannot open editor, need to be in tmux")
 
-func openInEditor(filepath string, winTitle string) error {
+func openEditor(filepath string, title string, window bool) error {
 	editor, hasEditor := os.LookupEnv("EDITOR")
 	if !hasEditor {
 		return errNoEditor
 	}
-
-	var cmd *exec.Cmd
 
 	_, isInTmux := os.LookupEnv("TMUX")
 	if !isInTmux {
 		return errNoTmux
 	}
 
-	cmd = exec.Command("tmux", "neww", "-n", winTitle, editor, filepath)
+	var cmd *exec.Cmd
+	if window {
+		cmd = exec.Command("tmux", "neww", "-n", title, editor, filepath)
+	} else {
+		cmd = exec.Command("tmux", "display-popup", "-w", "100%", "-h", "100%", "-T", title, "-EE", editor, filepath)
+	}
+
 	err := cmd.Run()
 	log.Printf("opened entry for editing in %s: %s", editor, filepath)
 

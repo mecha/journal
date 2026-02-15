@@ -5,27 +5,29 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/bbrks/wrap"
 )
 
 func FixedString(s string, maxLength int, pad string) string {
+	rc := utf8.RuneCountInString(s)
 	switch {
-	case len(s) > maxLength:
+	case rc > maxLength:
 		return s[:max(0, maxLength-1)] + "…"
 
 	case pad == "":
 		return s
 
 	default:
-		return s + strings.Repeat(pad, maxLength-len(s))
+		return s + strings.Repeat(pad, maxLength-rc)
 	}
 }
 
 func ScrollString(s string, scroll, maxLength int, pad string) string {
 	scroll = max(0, scroll)
 	if scroll > 0 {
-		if scroll < len(s) {
+		if scroll < utf8.RuneCountInString(s) {
 			s = s[scroll:]
 		} else {
 			s = ""
@@ -37,7 +39,7 @@ func ScrollString(s string, scroll, maxLength int, pad string) string {
 func MaxLength(strings []string) int {
 	maxLen := 0
 	for _, item := range strings {
-		maxLen = max(maxLen, len(item))
+		maxLen = max(maxLen, utf8.RuneCountInString(item))
 	}
 	return maxLen
 }

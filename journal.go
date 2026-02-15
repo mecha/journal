@@ -263,7 +263,7 @@ func (j *Journal) CreateEntry(date time.Time) (string, error) {
 	return filepath, err
 }
 
-func (j *Journal) EditEntry(date time.Time) error {
+func (j *Journal) EditEntry(date time.Time, window bool) error {
 	if !j.isMounted {
 		return errors.New("journal is not mounted")
 	}
@@ -277,8 +277,8 @@ func (j *Journal) EditEntry(date time.Time) error {
 		log.Printf("created new entry: %s", filepath)
 	}
 
-	winTitle := date.Format("02 Jan 2006")
-	err := openInEditor(filepath, winTitle)
+	title := date.Format("02 Jan 2006")
+	err := openEditor(filepath, title, window)
 
 	return err
 }
