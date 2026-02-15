@@ -56,24 +56,24 @@ func extend(base []t.Style) t.Style {
 
 func Borders(hasFocus bool, base ...t.Style) t.Style {
 	if hasFocus {
-		return BordersFocus(extend(base))
+		return BordersFocus(base...)
 	} else {
-		return BordersNormal(extend(base))
+		return BordersNormal(base...)
 	}
 }
 
 func Button(hasFocus bool, base ...t.Style) t.Style {
 	if hasFocus {
-		return ButtonFocus(extend(base))
+		return ButtonFocus(base...)
 	} else {
-		return ButtonNormal(extend(base))
+		return ButtonNormal(base...)
 	}
 }
 
 func ListItem(isSelected bool, base ...t.Style) t.Style {
 	if isSelected {
-		return ListSelect(extend(base))
+		return ListSelect(base...)
 	} else {
-		return ListNormal(extend(base))
+		return ListNormal(base...)
 	}
 }
