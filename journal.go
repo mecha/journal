@@ -10,6 +10,7 @@ import (
 	"maps"
 	"os"
 	"os/exec"
+	"os/signal"
 	"path"
 	"slices"
 	"strings"
@@ -22,13 +23,15 @@ import (
 	"gopkg.in/fsnotify.v1"
 )
 
-const MountWaitTime = time.Millisecond * 150
+var ErrIncorrectPassword = errors.New("Incorrect password")
+var ErrMountNotEmpty = errors.New("Mount point is not empty")
 
 type Journal struct {
 	cipherPath  string
 	mountPath   string
 	idleTimeout string
 	command     *exec.Cmd
+	signals     chan os.Signal
 	isMounted   bool
 	errorChan   chan error
 	onUnmount   func()
@@ -42,6 +45,7 @@ func NewJournal(cipherPath, mountPath string, idleTimeout string) (*Journal, err
 		mountPath:   strings.TrimSuffix(mountPath, "/"),
 		idleTimeout: idleTimeout,
 		command:     nil,
+		signals:     make(chan os.Signal, 1),
 		isMounted:   false,
 		errorChan:   make(chan error),
 		onUnmount:   nil,
@@ -64,23 +68,29 @@ func (j *Journal) Mount(password string) error {
 
 	os.MkdirAll(j.mountPath, 0755)
 
-	command := exec.Command(
+	j.command = exec.Command(
 		"gocryptfs",
 		"-fg",
-		"-q",
+		"-notifypid",
+		fmt.Sprintf("%d", os.Getpid()),
 		"-idle",
 		j.idleTimeout,
 		j.cipherPath,
 		j.mountPath,
 	)
 
-	stdin, err := command.StdinPipe()
+	// for writing the password to the command over its STDIN
+	stdin, err := j.command.StdinPipe()
 	if err != nil {
 		return err
 	}
 	defer stdin.Close()
 
-	err = command.Start()
+	// get signal from gocryptfs when it has mounted
+	signal.Notify(j.signals, syscall.SIGUSR1)
+	defer signal.Stop(j.signals)
+
+	err = j.command.Start()
 	if err != nil {
 		return err
 	}
@@ -90,40 +100,55 @@ func (j *Journal) Mount(password string) error {
 		return err
 	}
 
-	j.isMounted = true
-	j.command = command
-
 	go func() {
 		j.errorChan <- j.command.Wait()
 	}()
 
 	select {
+	// timeout, abort mission
+	case <-time.NewTimer(3 * time.Second).C:
+		return errors.New("timed out waiting for journal to mount")
+
+	// got error, command has exited
 	case err := <-j.errorChan:
-		j.isMounted = false
-		j.watcher.Close()
+		switch err := err.(type) {
+		case *exec.ExitError:
+			switch err.ExitCode() {
+			case 12:
+				return ErrIncorrectPassword
+			case 10:
+				return ErrMountNotEmpty
+			}
+		}
 		return err
-	case <-time.NewTimer(MountWaitTime).C:
+
+	// got signal, has mounted successfully
+	case <-j.signals:
+		j.isMounted = true
+
+		// watch mounted path for fs events
 		err := j.watcher.AddRecursive(j.mountPath)
 		if err != nil {
 			log.Println(err)
 		}
 		go j.handleWatcherEvents()
+
+		// listen for errors from the command to unmount
+		go func() {
+			err := <-j.errorChan
+			if err != nil {
+				log.Printf("journal locked; %s", err.Error())
+			}
+			j.isMounted = false
+			j.watcher.Close()
+			if j.onUnmount != nil {
+				j.onUnmount()
+			}
+			j.errorChan <- err
+		}()
+
+		return nil
 	}
-
-	go func() {
-		err := <-j.errorChan
-		if err != nil {
-			log.Printf("journal locked; %s", err.Error())
-		}
-		j.isMounted = false
-		j.watcher.Close()
-		if j.onUnmount != nil {
-			j.onUnmount()
-		}
-		j.errorChan <- err
-	}()
-
-	return nil
 }
 
 func (j *Journal) handleWatcherEvents() {

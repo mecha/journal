@@ -20,6 +20,7 @@ type App struct {
 	tagsList  *TagsState
 	preview   *c.TextState
 	pwdInput  *c.InputState
+	pwdError  error
 	logs      *c.TextState
 }
 
@@ -70,11 +71,12 @@ func (app *App) handlePasswordInput() {
 	password := app.pwdInput.Value
 	app.pwdInput.Value = ""
 	app.pwdInput.Cursor = 0
+	app.pwdError = nil
 
 	if !app.journal.isMounted {
-		err := app.journal.Mount(password)
-		if err != nil {
-			log.Println("failed to unlock journal; ", err)
+		app.pwdError = app.journal.Mount(password)
+		if app.pwdError != nil {
+			log.Println("failed to unlock journal; ", app.pwdError)
 			return
 		}
 
@@ -115,11 +117,16 @@ func DrawApp(r c.Renderer, app *App) c.EventHandler {
 	}
 
 	if !app.journal.isMounted {
+		style := theme.BordersFocus()
+		if app.pwdError != nil {
+			style = style.Foreground(t.ColorOrangeRed)
+		}
+
 		rect := c.CenterRect(r.GetRegion(), min(width, 40), 3)
 		handler := c.Box(r.SubRegion(rect), c.BoxProps{
 			Title:   "Password",
 			Borders: c.BordersRound,
-			Style:   theme.BordersFocus(),
+			Style:   style,
 			Children: func(r c.Renderer) c.EventHandler {
 				return c.Input(r, c.InputProps{
 					State: app.pwdInput,
@@ -127,6 +134,15 @@ func DrawApp(r c.Renderer, app *App) c.EventHandler {
 				})
 			},
 		})
+
+		if app.pwdError != nil {
+			errRect := c.NewRect(rect.X+1, rect.Y+rect.H, rect.W-2, 3)
+			c.Text(r.SubRegion(errRect), c.TextProps{
+				Style: style.Bold(true),
+				State: &c.TextState{Lines: []string{app.pwdError.Error()}},
+			})
+		}
+
 		return func(ev t.Event) bool {
 			if handler != nil && handler(ev) {
 				return true
