@@ -3,6 +3,9 @@ package theme
 import t "github.com/gdamore/tcell/v2"
 
 var (
+	Logo = func(s ...t.Style) t.Style {
+		return extend(s).Foreground(t.ColorGreen)
+	}
 	Input = func(s ...t.Style) t.Style {
 		return extend(s)
 	}

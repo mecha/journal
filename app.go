@@ -8,6 +8,7 @@ import (
 
 	c "github.com/mecha/journal/components"
 	"github.com/mecha/journal/theme"
+	"github.com/mecha/journal/utils"
 
 	t "github.com/gdamore/tcell/v2"
 )
@@ -134,6 +135,14 @@ func DrawApp(r c.Renderer, app *App) c.EventHandler {
 				})
 			},
 		})
+
+		logoRegion := r.SubRegion(c.Rect{
+			Pos:  c.Pos{X: (width - LogoSize.W) / 2, Y: rect.Y - LogoSize.H},
+			Size: LogoSize,
+		})
+		for i, line := range Logo {
+			logoRegion.PutStrStyled(0, i, line, theme.Logo())
+		}
 
 		if app.pwdError != nil {
 			errRect := c.NewRect(rect.X+1, rect.Y+rect.H, rect.W-2, 3)
@@ -292,3 +301,16 @@ func (w *AppLogWriter) Write(data []byte) (int, error) {
 	w.app.logs.Scroll = c.Pos{X: 0, Y: len(w.app.logs.Lines)}
 	return len(data), nil
 }
+
+var Logo = []string{
+	"  ░██                                                      ░██ ",
+	"                                                           ░██ ",
+	"  ░██  ░███████  ░██    ░██ ░██░████ ░████████   ░██████   ░██ ",
+	"  ░██ ░██    ░██ ░██    ░██ ░███     ░██    ░██       ░██  ░██ ",
+	"  ░██ ░██    ░██ ░██    ░██ ░██      ░██    ░██  ░███████  ░██ ",
+	"  ░██ ░██    ░██ ░██   ░███ ░██      ░██    ░██ ░██   ░██  ░██ ",
+	"  ░██  ░███████   ░█████░██ ░██      ░██    ░██  ░█████░██ ░██ ",
+	"  ░██                                                          ",
+	"░███                                                           ",
+}
+var LogoSize = c.Size{W: utils.MaxLength(Logo), H: len(Logo)}
