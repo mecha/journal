@@ -180,7 +180,7 @@ func DrawApp(r c.Renderer, app *App) c.EventHandler {
 		calRegion, tagsRegion := leftRegion.SplitVertical(calendarHeight)
 
 		logsHandler := c.Box(logsRegion, c.BoxProps{
-			Title:   "[4]─Log",
+			Title:   fmt.Sprintf("[4]─Logs (%d)", len(app.logs.Lines)),
 			Borders: c.BordersRound,
 			Style:   theme.Borders(isLogsFocused),
 			Children: func(r c.Renderer) c.EventHandler {
